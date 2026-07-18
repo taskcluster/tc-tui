@@ -186,6 +186,29 @@ func (s *Shell) openFilter() {
 	s.app.SetFocus(s.footerInput)
 }
 
+// clearActiveFilter clears whichever filter (list or detail) is active on
+// the front page, if any, and reports whether it actually cleared one — so a
+// caller like the global Esc handler can fall through to goBack() only once
+// there's no more filter left to clear.
+func (s *Shell) clearActiveFilter() bool {
+	if name, _ := s.content.GetFrontPage(); name == pageDetail {
+		if s.detail.FilterQuery() == "" {
+			return false
+		}
+		s.detail.SetFilterQuery("")
+		s.refreshDetailTitle()
+		s.updateBorderColor()
+		return true
+	}
+	if s.filterQuery == "" {
+		return false
+	}
+	s.filterQuery = ""
+	s.filterByResource[s.currentListResource] = ""
+	s.refreshTable()
+	return true
+}
+
 // openIDPrompt switches the footer to an inline id-entry field for a
 // DirectLookup or DirectScopedResource reached with no id (e.g. bare
 // `:task`), or for the 's' save-as path — rather than erroring or
@@ -323,15 +346,7 @@ func (s *Shell) handleFooterInputDone(key tcell.Key) {
 		}
 	case tcell.KeyEscape:
 		if s.footerMode == footerFilter {
-			if name, _ := s.content.GetFrontPage(); name == pageDetail {
-				s.detail.SetFilterQuery("")
-				s.refreshDetailTitle()
-				s.updateBorderColor()
-			} else {
-				s.filterQuery = ""
-				s.filterByResource[s.currentListResource] = ""
-				s.refreshTable()
-			}
+			s.clearActiveFilter()
 		}
 		s.pendingLookupCommit = nil
 		s.closeFooterInput()

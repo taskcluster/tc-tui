@@ -425,6 +425,9 @@ func (s *Shell) globalInputCapture(event *tcell.EventKey) *tcell.EventKey {
 		s.Stop()
 		return nil
 	case event.Key() == tcell.KeyEscape:
+		if s.clearActiveFilter() {
+			return nil
+		}
 		s.goBack()
 		return nil
 	case event.Rune() == ':':

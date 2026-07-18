@@ -2066,6 +2066,60 @@ func TestGoBackPopsOneLevelWhenNotAtRoot(t *testing.T) {
 	}
 }
 
+func TestEscClearsActiveListFilterBeforeGoingBack(t *testing.T) {
+	registry := resource.NewRegistry()
+	registry.Register(fakeResource{name: "workerpools"})
+	registry.Register(fakeResource{name: "workers"})
+	s := New(registry)
+	s.stack.Push(View{ResourceName: "workerpools", Kind: ListKind})
+	s.stack.Push(View{ResourceName: "workers", Kind: ListKind, Scope: "pool-a"})
+	s.currentListResource = "workers"
+	s.filterQuery = "proj-task"
+	s.filterByResource["workers"] = "proj-task"
+
+	s.globalInputCapture(tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone))
+
+	if s.filterQuery != "" {
+		t.Fatalf("expected the first Esc to clear the active filter, got %q", s.filterQuery)
+	}
+	if s.stack.Len() != 2 {
+		t.Fatalf("expected the first Esc to leave the stack untouched, got length %d", s.stack.Len())
+	}
+
+	s.globalInputCapture(tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone))
+
+	if s.stack.Len() != 1 {
+		t.Fatalf("expected the second Esc to pop the stack now that the filter is clear, got length %d", s.stack.Len())
+	}
+}
+
+func TestEscClearsActiveDetailFilterBeforeGoingBack(t *testing.T) {
+	registry := resource.NewRegistry()
+	registry.Register(fakeResource{name: "workerpools"})
+	registry.Register(fakeResource{name: "workers"})
+	s := New(registry)
+	s.stack.Push(View{ResourceName: "workerpools", Kind: ListKind})
+	s.stack.Push(View{ResourceName: "workers", Kind: DetailKind, SelectedID: "worker-1"})
+	s.detail.SetData(resource.Detail{Body: "alpha\nbeta\n"})
+	s.detail.SetFilterQuery("beta")
+	s.content.SwitchToPage(pageDetail)
+
+	s.globalInputCapture(tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone))
+
+	if s.detail.FilterQuery() != "" {
+		t.Fatalf("expected the first Esc to clear the active detail filter, got %q", s.detail.FilterQuery())
+	}
+	if s.stack.Len() != 2 {
+		t.Fatalf("expected the first Esc to leave the stack untouched, got length %d", s.stack.Len())
+	}
+
+	s.globalInputCapture(tcell.NewEventKey(tcell.KeyEscape, 0, tcell.ModNone))
+
+	if s.stack.Len() != 1 {
+		t.Fatalf("expected the second Esc to pop the stack now that the filter is clear, got length %d", s.stack.Len())
+	}
+}
+
 type fakeScopeActionsResource struct {
 	fakeScopedResource
 	actions []resource.DetailAction
