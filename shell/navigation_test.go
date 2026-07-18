@@ -1913,14 +1913,14 @@ func TestLoadDetailIncrementsGenerationOnEachNavigationDispatch(t *testing.T) {
 	res := fakeResource{name: "task"}
 
 	before := s.loadGeneration
-	s.loadDetail(res, "A", true, true) // e.g. a restore-replay dispatch
+	s.loadDetail(res, "A", true, true, false) // e.g. a restore-replay dispatch
 
 	if s.loadGeneration != before+1 {
 		t.Fatalf("expected loadGeneration to increment by 1, got %d -> %d", before, s.loadGeneration)
 	}
 	firstGen := s.loadGeneration
 
-	s.loadDetail(res, "A", true, false) // e.g. a manual re-navigation to the identical target
+	s.loadDetail(res, "A", true, false, false) // e.g. a manual re-navigation to the identical target
 
 	if s.loadGeneration != firstGen+1 {
 		t.Fatalf("expected loadGeneration to increment again, got %d -> %d", firstGen, s.loadGeneration)
@@ -1960,10 +1960,10 @@ func TestLoadDetailBackgroundRefreshDoesNotBumpGeneration(t *testing.T) {
 	s := New(resource.NewRegistry())
 	res := fakeResource{name: "task"}
 
-	s.loadDetail(res, "A", true, false) // a genuine navigation dispatch (isInitial=true)
+	s.loadDetail(res, "A", true, false, false) // a genuine navigation dispatch (isInitial=true)
 	genAfterInitial := s.loadGeneration
 
-	s.loadDetail(res, "A", false, false) // a background refresh tick (isInitial=false) — must NOT bump generation
+	s.loadDetail(res, "A", false, false, false) // a background refresh tick (isInitial=false) — must NOT bump generation
 
 	if s.loadGeneration != genAfterInitial {
 		t.Fatalf("expected a background refresh (isInitial=false) not to bump loadGeneration, got %d -> %d", genAfterInitial, s.loadGeneration)

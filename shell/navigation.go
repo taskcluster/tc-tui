@@ -1013,17 +1013,41 @@ func (s *Shell) renderDetail(res resource.Resource, id string, isRestore bool) {
 
 	s.renderHeaderHints()
 	s.renderBreadcrumbs()
-	s.setTitle("Loading " + res.Name() + "...")
-	s.detail.SetData(resource.Detail{})
+
+	// A cache hit redraws this view's last-known content immediately instead
+	// of blanking to "Loading..." — most noticeable on Esc/back navigation,
+	// where the exact same view was just on screen a moment ago. loadDetail
+	// still re-fetches fresh in the background regardless (primed=true below
+	// only changes how ITS OWN completion applies the result — see
+	// detailCache's doc comment) — this never substitutes for a real
+	// Describe.
+	primed := false
+	if entry, ok := s.detailCache.get(detailCacheKeyFor(res, id), res.RefreshInterval()); ok {
+		s.detail.SetData(entry.detail)
+		s.currentDetailActions = entry.detail.Actions
+		s.activeContent = s.detail
+		s.currentDetailTitle = entry.detail.Title
+		s.refreshDetailTitle()
+		s.renderHeaderHints()
+		primed = true
+	} else {
+		s.setTitle("Loading " + res.Name() + "...")
+		s.detail.SetData(resource.Detail{})
+	}
 	s.content.SwitchToPage(pageDetail)
 	s.updateBorderColor()
 	s.app.SetFocus(s.detail)
 
 	s.startRefreshLoop(View{ResourceName: res.Name(), Kind: DetailKind, SelectedID: id}, res.RefreshInterval())
-	s.loadDetail(res, id, true, isRestore)
+	s.loadDetail(res, id, true, isRestore, primed)
 }
 
-func (s *Shell) loadDetail(res resource.Resource, id string, isInitial, isRestore bool) {
+// primed is true only when renderDetail already redrew this view
+// synchronously from detailCache — it makes this call's own completion
+// behave like a background refresh (UpdateData, transient warning on
+// failure) even though isInitial is true, since the screen isn't blank and
+// shouldn't be treated as if this were the first content it's ever shown.
+func (s *Shell) loadDetail(res resource.Resource, id string, isInitial, isRestore, primed bool) {
 	gen := s.nextLoadGeneration(isInitial)
 
 	go func() {
@@ -1053,7 +1077,7 @@ func (s *Shell) loadDetail(res resource.Resource, id string, isInitial, isRestor
 					s.renderRestoredTop()
 					return
 				}
-				if isInitial {
+				if isInitial && !primed {
 					s.showError(fmt.Sprintf("%s %s", res.Name(), id), err, func() { s.renderDetail(res, id, false) })
 				} else {
 					s.showTransientWarning(fmt.Sprintf("refresh failed: %s", err))
@@ -1061,7 +1085,9 @@ func (s *Shell) loadDetail(res resource.Resource, id string, isInitial, isRestor
 				return
 			}
 
-			if isInitial {
+			s.detailCache.set(detailCacheKeyFor(res, id), detailCacheEntry{detail: detail, fetchedAt: time.Now()})
+
+			if isInitial && !primed {
 				s.detail.SetData(detail)
 			} else {
 				s.detail.UpdateData(detail)

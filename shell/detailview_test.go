@@ -714,10 +714,13 @@ func TestRenderLinesRestoresFullAccumulatedAttributesWhenOpenersAreFiltered(t *t
 	}
 	states, _ := lineStartStyles(defaultTagStyle(), lines)
 
-	// Matches only the third line's stripped text.
+	// Matches only the third line's stripped text. The match itself
+	// ("still bold", 10 runes) is long enough to also get highlighted (see
+	// highlightMatchMinLength), restoring the same bold+italic style right
+	// after it.
 	got := renderLines(lines, 1, "still bold", true, states)
 
-	want := fmt.Sprintf("[gray]%*d[-:-:-][::bi] still bold and italic", lineNumberWidth, 3)
+	want := fmt.Sprintf("[gray]%*d[-:-:-][::bi] [::r]still bold[-:-:-][::bi] and italic", lineNumberWidth, 3)
 	if got != want {
 		t.Fatalf("unexpected rendering with filtered-out attribute openers:\ngot:  %q\nwant: %q", got, want)
 	}
@@ -746,5 +749,86 @@ func TestDetailViewFilteredNumberedLineRestoresFullAttributeSetOnScreen(t *testi
 	}
 	if attrs&tcell.AttrItalic == 0 {
 		t.Fatalf("expected the surviving line to still render italic too, attrs=%v", attrs)
+	}
+}
+
+func TestHighlightMatchesLeavesShortQueriesUnhighlighted(t *testing.T) {
+	line := "an error occurred"
+	got := highlightMatches(line, "er", defaultTagStyle()) // 2 runes — at highlightMatchMinLength, not over it
+	if got != line {
+		t.Fatalf("expected a 2-rune query to be left unhighlighted, got %q", got)
+	}
+}
+
+func TestHighlightMatchesWrapsCaseInsensitiveMatchAndRestoresStyle(t *testing.T) {
+	got := highlightMatches("an ERROR occurred", "error", defaultTagStyle())
+	want := "an [::r]ERROR[-:-:-] occurred"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestHighlightMatchesWrapsEveryOccurrence(t *testing.T) {
+	got := highlightMatches("error: error again", "error", defaultTagStyle())
+	want := "[::r]error[-:-:-]: [::r]error[-:-:-] again"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestHighlightMatchesRestoresNonDefaultStyle(t *testing.T) {
+	style := tagStyle{fg: "green", bg: "-", attrs: tcell.AttrBold}
+	got := highlightMatches("still bold and italic", "still bold", style)
+	want := "[::r]still bold[green:-:-][::b] and italic"
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestHighlightMatchesSkipsMatchesInsideStyleTags(t *testing.T) {
+	// "green" only appears inside the color tag itself, never in the
+	// line's literal text — highlightMatches must not touch tag content.
+	line := "[green]completed[white]"
+	got := highlightMatches(line, "green", defaultTagStyle())
+	if got != line {
+		t.Fatalf("expected a query matching only inside a style tag to leave the line untouched, got %q", got)
+	}
+}
+
+func TestRenderLinesOnlyHighlightsWhenQueryIsActive(t *testing.T) {
+	lines := []string{"an error occurred"}
+	states, _ := lineStartStyles(defaultTagStyle(), lines)
+
+	got := renderLines(lines, 1, "", false, states)
+	if got != lines[0] {
+		t.Fatalf("expected an empty query to leave lines unhighlighted, got %q", got)
+	}
+}
+
+func TestDetailViewFilterHighlightsMatchOnScreen(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	if err := screen.Init(); err != nil {
+		t.Fatalf("failed to init simulation screen: %v", err)
+	}
+	screen.SetSize(80, 10)
+
+	d := NewDetailView()
+	d.SetRect(0, 0, 80, 10)
+	d.SetData(resource.Detail{Body: "an error occurred\nsomething else\n"})
+	d.SetFilterQuery("error")
+	d.Draw(screen)
+
+	// "an error occurred" — 'e' of "error" starts at column 3.
+	_, _, style, _ := screen.GetContent(3, 0)
+	_, _, attrs := style.Decompose()
+	if attrs&tcell.AttrReverse == 0 {
+		t.Fatalf("expected the matched substring to render reverse-video, attrs=%v", attrs)
+	}
+
+	// "an " (before the match) must NOT be reverse-video.
+	_, _, style, _ = screen.GetContent(0, 0)
+	_, _, attrs = style.Decompose()
+	if attrs&tcell.AttrReverse != 0 {
+		t.Fatalf("expected text before the match to render normally, attrs=%v", attrs)
 	}
 }

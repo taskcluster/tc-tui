@@ -83,7 +83,7 @@ func TestLiveStreamAppendsProgressively(t *testing.T) {
 	}
 	s := newLiveStreamShell(t, res)
 
-	s.loadDetail(res, "x", true, false)
+	s.loadDetail(res, "x", true, false, false)
 
 	res.appendCh <- "hello line\n"
 	waitFor(t, func() bool { return strings.Contains(detailText(t, s), "hello line") })
@@ -118,7 +118,7 @@ func TestLiveStreamStopsOnNavigateBack(t *testing.T) {
 	s.stack.Push(View{ResourceName: res.Name(), Kind: ListKind})
 	s.stack.Push(View{ResourceName: res.Name(), Kind: DetailKind, SelectedID: "x"})
 
-	s.loadDetail(res, "x", true, false)
+	s.loadDetail(res, "x", true, false, false)
 	res.appendCh <- "streaming\n"
 	waitFor(t, func() bool { return strings.Contains(detailText(t, s), "streaming") })
 
@@ -140,7 +140,7 @@ func TestLiveStreamTruncationBanner(t *testing.T) {
 	}
 	s := newLiveStreamShell(t, res)
 
-	s.loadDetail(res, "x", true, false)
+	s.loadDetail(res, "x", true, false, false)
 	res.appendCh <- "some content\n"
 	close(res.appendCh)
 
@@ -157,7 +157,7 @@ func TestLiveStreamEarlyErrorShowsErrorView(t *testing.T) {
 	}
 	s := newLiveStreamShell(t, res)
 
-	s.loadDetail(res, "x", true, false)
+	s.loadDetail(res, "x", true, false, false)
 
 	waitFor(t, func() bool {
 		var page string
@@ -176,7 +176,7 @@ func TestLiveStreamerNotLiveFallsBackToDescribe(t *testing.T) {
 	}
 	s := newLiveStreamShell(t, res)
 
-	s.loadDetail(res, "x", true, false)
+	s.loadDetail(res, "x", true, false, false)
 
 	waitFor(t, func() bool { return strings.Contains(detailText(t, s), "STATIC CONTENT") })
 }

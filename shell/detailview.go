@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -353,13 +354,86 @@ func renderLines(lines []string, start int, query string, numbered bool, lineSta
 	kept := filterLineIndices(lines, query)
 	rendered := make([]string, len(kept))
 	for j, i := range kept {
+		line := lines[i]
+		if query != "" {
+			line = highlightMatches(line, query, lineStates[i])
+		}
 		if numbered {
-			rendered[j] = fmt.Sprintf("[gray]%*d%s %s", lineNumberWidth, start+i, lineStates[i].tag(), lines[i])
+			rendered[j] = fmt.Sprintf("[gray]%*d%s %s", lineNumberWidth, start+i, lineStates[i].tag(), line)
 		} else {
-			rendered[j] = lines[i]
+			rendered[j] = line
 		}
 	}
 	return strings.Join(rendered, "\n")
+}
+
+// highlightMatchMinLength is the minimum query length (in runes) a '/'
+// filter query must reach before surviving lines get their matches visually
+// highlighted, on top of just being kept — a 1-2 character query matches so
+// much of ordinary text that highlighting every hit would be noise rather
+// than a useful pointer to where the match actually is.
+const highlightMatchMinLength = 2
+
+// highlightMatches wraps every case-insensitive occurrence of query within
+// line's literal (non-tag) text in a reverse-video tag, restoring style (the
+// tagStyle active at the very start of line — see lineStartStyles)
+// immediately after each match. Reverse video rather than a fixed color, so
+// a match stays visible regardless of the line's own color (plain text,
+// chroma-highlighted JSON, ANSI log output, ...) and the terminal's palette.
+// Segments are split on style-tag boundaries first (mirroring
+// advanceTagStyle) so a match can't be found straddling a real tag — the
+// common case (plain surrounding text) is unaffected, and a match that
+// happens to sit right at a color change simply isn't highlighted, same as
+// filterLineIndices already can't tell such a line apart from any other
+// match when deciding whether to keep it.
+func highlightMatches(line, query string, style tagStyle) string {
+	if utf8.RuneCountInString(query) <= highlightMatchMinLength {
+		return line
+	}
+
+	var sb strings.Builder
+	state := style
+	pos := 0
+	for _, m := range bracketPattern.FindAllStringIndex(line, -1) {
+		start, end := m[0], m[1]
+		sb.WriteString(highlightSegment(line[pos:start], query, state))
+		tagText := line[start:end]
+		sb.WriteString(tagText)
+		if !isEscapedTag(tagText) {
+			state = applyTag(state, tagText[1:len(tagText)-1])
+		}
+		pos = end
+	}
+	sb.WriteString(highlightSegment(line[pos:], query, state))
+	return sb.String()
+}
+
+// highlightSegment wraps every case-insensitive occurrence of query within
+// segment — a run of literal text with no style tags of its own — in a
+// reverse-video tag, restoring style right after each one.
+func highlightSegment(segment, query string, style tagStyle) string {
+	lowerSeg := strings.ToLower(segment)
+	lowerQuery := strings.ToLower(query)
+	if segment == "" || !strings.Contains(lowerSeg, lowerQuery) {
+		return segment
+	}
+
+	var sb strings.Builder
+	i := 0
+	for {
+		idx := strings.Index(lowerSeg[i:], lowerQuery)
+		if idx < 0 {
+			sb.WriteString(segment[i:])
+			break
+		}
+		idx += i
+		sb.WriteString(segment[i:idx])
+		sb.WriteString("[::r]")
+		sb.WriteString(segment[idx : idx+len(lowerQuery)])
+		sb.WriteString(style.tag())
+		i = idx + len(lowerQuery)
+	}
+	return sb.String()
 }
 
 // tagStyle tracks the tview style-tag fields (foreground, background,

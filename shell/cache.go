@@ -96,4 +96,56 @@ func (c *listCache) invalidate(resourceName string) {
 			delete(c.entries, key)
 		}
 	}
+// detailCacheKey identifies one (resource, id) Describe result.
+type detailCacheKey struct {
+	resource string
+	id       string
+}
+
+func detailCacheKeyFor(res resource.Resource, id string) detailCacheKey {
+	return detailCacheKey{resource: res.Name(), id: id}
+}
+
+// detailCacheEntry holds the last successfully rendered Describe result for
+// one (resource, id) — just enough to redraw the view synchronously (see
+// renderDetail's primed path) without re-fetching.
+type detailCacheEntry struct {
+	detail    resource.Detail
+	fetchedAt time.Time
+}
+
+// detailCache lets renderDetail redraw a previously-visited Detail view
+// immediately from its last-known content — most useful for Esc/back
+// navigation, where re-fetching (Describe is never cached at the resource
+// layer — see CLAUDE.md) can otherwise leave the screen blank on a
+// "Loading..." title for as long as that fetch takes, even though the exact
+// same view was on screen a moment ago. A hit only avoids that blank flash;
+// loadDetail still re-fetches in the background every time (via the `primed`
+// argument) and silently updates the view once that lands, exactly like an
+// auto-refresh tick — this is a rendering-latency optimization, not a
+// substitute for a fresh Describe. Same shape/eviction policy as listCache:
+// entries are session-lifetime, staleness is TTL-checked at read time only.
+type detailCache struct {
+	entries map[detailCacheKey]detailCacheEntry
+}
+
+func newDetailCache() *detailCache {
+	return &detailCache{entries: make(map[detailCacheKey]detailCacheEntry)}
+}
+
+func (c *detailCache) get(key detailCacheKey, ttl time.Duration) (detailCacheEntry, bool) {
+	if ttl <= 0 {
+		return detailCacheEntry{}, false
+	}
+
+	entry, ok := c.entries[key]
+	if !ok || time.Since(entry.fetchedAt) >= ttl {
+		return detailCacheEntry{}, false
+	}
+
+	return entry, true
+}
+
+func (c *detailCache) set(key detailCacheKey, entry detailCacheEntry) {
+	c.entries[key] = entry
 }

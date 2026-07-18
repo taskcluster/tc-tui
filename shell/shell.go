@@ -234,6 +234,10 @@ type Shell struct {
 
 	cache *listCache
 
+	// detailCache mirrors cache but for Describe results, keyed by (resource,
+	// id) — see detailCache's own doc comment for why this exists.
+	detailCache *detailCache
+
 	// historyRecorder is resolved once, in init(), from whatever resource is
 	// registered under the name "history" (nil if none is — e.g. a minimal
 	// test registry). Every recording call in loadList/loadDetail is a no-op
@@ -297,6 +301,7 @@ func New(registry *resource.Registry) *Shell {
 		loadAllKeys:      make(map[cacheKey]bool),
 		footerHistory:    make(map[footerHistoryKey][]string),
 		cache:            newListCache(),
+		detailCache:      newDetailCache(),
 		openBrowser:      openBrowser,
 	}
 	s.init()
