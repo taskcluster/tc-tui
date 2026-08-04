@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"strings"
 	"sync/atomic"
 
 	"github.com/gdamore/tcell/v2"
@@ -213,6 +214,12 @@ type Shell struct {
 	// since wall-clock timing against a SimulationScreen doesn't reflect real
 	// terminal draw cost. Always nil in production.
 	onAugmentRedrawForTest func()
+
+	// onStopForTest, if set, is called by Stop before app.Stop() — a test-only
+	// seam for asserting a quit was triggered (e.g. via the `:quit` command),
+	// since tview's Application doesn't expose whether it's running. Always nil
+	// in production.
+	onStopForTest func()
 
 	activeContent tview.Primitive
 
@@ -500,6 +507,13 @@ func isQuitKey(event *tcell.EventKey) bool {
 	return event.Key() == tcell.KeyRune && event.Rune() == 'q'
 }
 
+// isQuitCommand reports whether a `:` command-bar word means "quit the app",
+// the command-bar counterpart of the global `q` key (isQuitKey). Accepts the
+// long form and the single-letter shorthand.
+func isQuitCommand(name string) bool {
+	return strings.EqualFold(name, "quit") || strings.EqualFold(name, "q")
+}
+
 // hasFacets reports whether the current list view has a facet tab bar —
 // either client-side (Faceted) or server-side (ServerFaceted).
 func (s *Shell) hasFacets() bool {
@@ -586,6 +600,9 @@ func (s *Shell) StartAt(root, name, scope string) error {
 
 func (s *Shell) Stop() {
 	s.stopRefreshLoop()
+	if s.onStopForTest != nil {
+		s.onStopForTest()
+	}
 	s.app.Stop()
 }
 

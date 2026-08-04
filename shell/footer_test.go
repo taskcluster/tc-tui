@@ -510,6 +510,37 @@ func TestHandleFooterInputDoneRecordsCommandHistory(t *testing.T) {
 	}
 }
 
+func TestQuitCommandStopsApp(t *testing.T) {
+	// The command bar's ':' is the trigger key, not part of the input, so a
+	// user typing ':quit' produces the input "quit" here.
+	for _, cmd := range []string{"quit", "q", "QUIT"} {
+		t.Run(cmd, func(t *testing.T) {
+			s := New(resource.NewRegistry())
+			stopped := false
+			s.onStopForTest = func() { stopped = true }
+			s.footerMode = footerCommand
+			s.footerHistoryKey = historyKeyCommand
+			s.footerInput.SetText(cmd)
+
+			s.handleFooterInputDone(tcell.KeyEnter)
+
+			if !stopped {
+				t.Fatalf("expected %q to trigger Stop()", cmd)
+			}
+		})
+	}
+}
+
+func TestNonQuitCommandDoesNotStopApp(t *testing.T) {
+	s := New(resource.NewRegistry())
+	s.onStopForTest = func() { t.Fatal("Stop() should not be called for a non-quit command") }
+	s.footerMode = footerCommand
+	s.footerHistoryKey = historyKeyCommand
+	s.footerInput.SetText("workerpools")
+
+	s.handleFooterInputDone(tcell.KeyEnter)
+}
+
 func TestOpenCommandBarResetsHistoryNavToNewest(t *testing.T) {
 	s := New(resource.NewRegistry())
 	s.footerHistory[historyKeyCommand] = []string{"workerpools"}

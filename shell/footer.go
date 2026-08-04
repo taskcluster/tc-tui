@@ -292,9 +292,12 @@ func (s *Shell) handleFooterInputDone(key tcell.Key) {
 			s.recordFooterHistory(s.footerHistoryKey, s.footerInput.GetText())
 			name, scope := splitCommand(s.footerInput.GetText())
 			s.closeFooterInput()
-			if strings.EqualFold(name, "help") {
+			switch {
+			case strings.EqualFold(name, "help"):
 				s.openHelp()
-			} else {
+			case isQuitCommand(name):
+				s.Stop()
+			default:
 				s.switchResource(name, scope)
 			}
 		case footerFilter:
