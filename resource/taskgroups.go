@@ -14,21 +14,25 @@ import (
 // does (see taskListRows/taskListColumns), with the group's sealed status
 // surfaced via Subtitle rather than a page of its own.
 type TaskGroupResource struct {
-	tc      taskcluster.Taskcluster
-	history *taskDefHistory
+	tc         taskcluster.Taskcluster
+	history    *taskDefHistory
+	stateCache *taskStateCache
 }
 
-func NewTaskGroupResource(tc taskcluster.Taskcluster, history *taskDefHistory) *TaskGroupResource {
-	return &TaskGroupResource{tc: tc, history: history}
+func NewTaskGroupResource(tc taskcluster.Taskcluster, history *taskDefHistory, stateCache *taskStateCache) *TaskGroupResource {
+	return &TaskGroupResource{tc: tc, history: history, stateCache: stateCache}
 }
 
-// Actions exposes the same create-task action TasksResource offers
-// (resource.Actionable) — the taskgroup list (`:g <id>`, or a task's 'g'
-// jump) is the natural place to create a task, so it shouldn't require
-// knowing the `:tasks <id>` alias. It ignores id — creating a task doesn't
-// act on the highlighted row. See createTaskAction.
+// Actions splits by context on the empty-id convention.
+// The taskgroup *list* (id == "", reached via `:g <id>` or a task's 'g' jump)
+// offers create-task — the natural place to create a task, without needing the
+// `:tasks <id>` alias. Selecting a task row opens that task's detail rendered by
+// this same resource, so a non-empty id offers that task's lifecycle actions.
 func (r *TaskGroupResource) Actions(id string) []Action {
-	return []Action{createTaskAction(r.tc, r.history)}
+	if id == "" {
+		return []Action{createTaskAction(r.tc, r.history)}
+	}
+	return lifecycleActions(r.tc, r.stateCache, id)
 }
 
 func (r *TaskGroupResource) Name() string      { return "taskgroup" }
@@ -84,7 +88,7 @@ func (r *TaskGroupResource) Subtitle(taskGroupID string) (string, error) {
 }
 
 func (r *TaskGroupResource) Describe(id string) (Detail, error) {
-	return describeTask(r.tc, id)
+	return describeTask(r.tc, r.stateCache, id)
 }
 
 func (r *TaskGroupResource) RefreshInterval() time.Duration {

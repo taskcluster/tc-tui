@@ -25,7 +25,7 @@ func TestTaskGroupResourceScopedList(t *testing.T) {
 			},
 		},
 	}
-	res := NewTaskGroupResource(fake, &taskDefHistory{})
+	res := NewTaskGroupResource(fake, &taskDefHistory{}, nil)
 
 	rows, err := res.ScopedList("grp-1")
 	if err != nil {
@@ -39,7 +39,7 @@ func TestTaskGroupResourceScopedList(t *testing.T) {
 func TestTaskGroupResourceScopedListError(t *testing.T) {
 	wantErr := errors.New("boom")
 	fake := &fakeTaskcluster{taskGroupTasksErr: wantErr}
-	res := NewTaskGroupResource(fake, &taskDefHistory{})
+	res := NewTaskGroupResource(fake, &taskDefHistory{}, nil)
 
 	_, err := res.ScopedList("grp-1")
 	if !errors.Is(err, wantErr) {
@@ -51,7 +51,7 @@ func TestTaskGroupResourceSubtitleNotSealed(t *testing.T) {
 	fake := &fakeTaskcluster{
 		taskGroup: &tcqueue.TaskGroupDefinitionResponse{TaskGroupID: "grp-1"},
 	}
-	res := NewTaskGroupResource(fake, &taskDefHistory{})
+	res := NewTaskGroupResource(fake, &taskDefHistory{}, nil)
 
 	subtitle, err := res.Subtitle("grp-1")
 	if err != nil {
@@ -69,7 +69,7 @@ func TestTaskGroupResourceSubtitleSealed(t *testing.T) {
 			Sealed:      tcclient.Time(time.Now()),
 		},
 	}
-	res := NewTaskGroupResource(fake, &taskDefHistory{})
+	res := NewTaskGroupResource(fake, &taskDefHistory{}, nil)
 
 	subtitle, err := res.Subtitle("grp-1")
 	if err != nil {
@@ -83,7 +83,7 @@ func TestTaskGroupResourceSubtitleSealed(t *testing.T) {
 func TestTaskGroupResourceSubtitleError(t *testing.T) {
 	wantErr := errors.New("boom")
 	fake := &fakeTaskcluster{taskGroupErr: wantErr}
-	res := NewTaskGroupResource(fake, &taskDefHistory{})
+	res := NewTaskGroupResource(fake, &taskDefHistory{}, nil)
 
 	_, err := res.Subtitle("grp-1")
 	if !errors.Is(err, wantErr) {
@@ -92,7 +92,7 @@ func TestTaskGroupResourceSubtitleError(t *testing.T) {
 }
 
 func TestTaskGroupResourceListReturnsError(t *testing.T) {
-	res := NewTaskGroupResource(&fakeTaskcluster{}, &taskDefHistory{})
+	res := NewTaskGroupResource(&fakeTaskcluster{}, &taskDefHistory{}, nil)
 
 	if _, err := res.List(); err == nil {
 		t.Fatalf("expected an error, got nil")
@@ -100,7 +100,7 @@ func TestTaskGroupResourceListReturnsError(t *testing.T) {
 }
 
 func TestTaskGroupResourceIDPromptLabel(t *testing.T) {
-	res := NewTaskGroupResource(&fakeTaskcluster{}, &taskDefHistory{})
+	res := NewTaskGroupResource(&fakeTaskcluster{}, &taskDefHistory{}, nil)
 
 	if got := res.IDPromptLabel(); got != "task group id" {
 		t.Fatalf("expected %q, got %q", "task group id", got)
@@ -108,7 +108,7 @@ func TestTaskGroupResourceIDPromptLabel(t *testing.T) {
 }
 
 func TestTaskGroupResourceEmptyScopeResource(t *testing.T) {
-	res := NewTaskGroupResource(&fakeTaskcluster{}, &taskDefHistory{})
+	res := NewTaskGroupResource(&fakeTaskcluster{}, &taskDefHistory{}, nil)
 
 	if got := res.EmptyScopeResource(); got != "workerpools" {
 		t.Fatalf("expected %q, got %q", "workerpools", got)

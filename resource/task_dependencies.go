@@ -18,11 +18,12 @@ import (
 // shows the failure inline — since the rest of the dependencies are still
 // useful to see.
 type TaskDependenciesResource struct {
-	tc taskcluster.Taskcluster
+	tc         taskcluster.Taskcluster
+	stateCache *taskStateCache
 }
 
-func NewTaskDependenciesResource(tc taskcluster.Taskcluster) *TaskDependenciesResource {
-	return &TaskDependenciesResource{tc: tc}
+func NewTaskDependenciesResource(tc taskcluster.Taskcluster, stateCache *taskStateCache) *TaskDependenciesResource {
+	return &TaskDependenciesResource{tc: tc, stateCache: stateCache}
 }
 
 func (r *TaskDependenciesResource) Name() string      { return "dependencies" }
@@ -95,7 +96,18 @@ func (r *TaskDependenciesResource) EmptyScopeResource() string {
 }
 
 func (r *TaskDependenciesResource) Describe(id string) (Detail, error) {
-	return describeTask(r.tc, id)
+	return describeTask(r.tc, r.stateCache, id)
+}
+
+// Actions offers lifecycle actions on a selected dependency's task detail
+// (id != ""); the dependencies list itself carries no mutating action. Selecting
+// a row opens the task detail through this resource (its rows set no NavTarget),
+// so it must expose the actions like any other task detail.
+func (r *TaskDependenciesResource) Actions(id string) []Action {
+	if id == "" {
+		return nil
+	}
+	return lifecycleActions(r.tc, r.stateCache, id)
 }
 
 func (r *TaskDependenciesResource) RefreshInterval() time.Duration {
@@ -120,11 +132,12 @@ func (r *TaskDependenciesResource) DetailWebURL(rootURL, id string) string {
 // reuses the same row shape (and Describe) as TasksResource rather than
 // overriding navigation via NavTarget.
 type TaskDependentsResource struct {
-	tc taskcluster.Taskcluster
+	tc         taskcluster.Taskcluster
+	stateCache *taskStateCache
 }
 
-func NewTaskDependentsResource(tc taskcluster.Taskcluster) *TaskDependentsResource {
-	return &TaskDependentsResource{tc: tc}
+func NewTaskDependentsResource(tc taskcluster.Taskcluster, stateCache *taskStateCache) *TaskDependentsResource {
+	return &TaskDependentsResource{tc: tc, stateCache: stateCache}
 }
 
 func (r *TaskDependentsResource) Name() string      { return "dependents" }
@@ -157,7 +170,16 @@ func (r *TaskDependentsResource) EmptyScopeResource() string {
 }
 
 func (r *TaskDependentsResource) Describe(id string) (Detail, error) {
-	return describeTask(r.tc, id)
+	return describeTask(r.tc, r.stateCache, id)
+}
+
+// Actions offers lifecycle actions on a selected dependent's task detail
+// (id != ""); the dependents list itself carries no mutating action.
+func (r *TaskDependentsResource) Actions(id string) []Action {
+	if id == "" {
+		return nil
+	}
+	return lifecycleActions(r.tc, r.stateCache, id)
 }
 
 func (r *TaskDependentsResource) RefreshInterval() time.Duration {

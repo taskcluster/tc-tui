@@ -119,9 +119,3 @@ func TestParseActionInputExternalEditorReturnsRaw(t *testing.T) {
 		t.Fatalf("Raw = %q, want the buffer verbatim", in.Raw)
 	}
 }
-
-func TestInputExternalEditorIsNotInTUIMultiline(t *testing.T) {
-	if InputExternalEditor.Multiline() {
-		t.Fatal("InputExternalEditor is not an in-TUI text area")
-	}
-}

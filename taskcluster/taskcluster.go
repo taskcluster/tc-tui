@@ -88,6 +88,10 @@ type Taskcluster interface {
 
 	GetTask(taskID string) (*tcqueue.TaskDefinitionResponse, error)
 	CreateTask(taskID string, body json.RawMessage) (*tcqueue.TaskStatusResponse, error)
+	CancelTask(taskID string) (*tcqueue.TaskStatusResponse, error)
+	RerunTask(taskID string) (*tcqueue.TaskStatusResponse, error)
+	ScheduleTask(taskID string) (*tcqueue.TaskStatusResponse, error)
+	ChangeTaskPriority(taskID, newPriority string) (*tcqueue.TaskStatusResponse, error)
 	GetTaskStatus(taskID string) (*tcqueue.TaskStatusStructure, error)
 	GetTaskGroup(taskGroupID string) (*tcqueue.TaskGroupDefinitionResponse, error)
 	GetTaskGroupTasks(taskGroupID string, limit int) (TaskGroupTaskList, bool, error)
@@ -518,6 +522,32 @@ func (tc *TC) CreateTask(taskID string, body json.RawMessage) (*tcqueue.TaskStat
 		return nil, err
 	}
 	return resp.(*tcqueue.TaskStatusResponse), nil
+}
+
+// CancelTask cancels an unscheduled/pending/running task, resolving its current
+// run as an exception with reasonResolved "canceled". Idempotent: cancelling an
+// already-resolved task just returns its current status.
+func (tc *TC) CancelTask(taskID string) (*tcqueue.TaskStatusResponse, error) {
+	return tc.queue.CancelTask(taskID)
+}
+
+// RerunTask reruns a previously resolved task under the same taskID, resetting
+// its retries. Idempotent for a pending/running task.
+func (tc *TC) RerunTask(taskID string) (*tcqueue.TaskStatusResponse, error) {
+	return tc.queue.RerunTask(taskID)
+}
+
+// ScheduleTask schedules an unscheduled task even if its dependencies are
+// unresolved. Idempotent.
+func (tc *TC) ScheduleTask(taskID string) (*tcqueue.TaskStatusResponse, error) {
+	return tc.queue.ScheduleTask(taskID)
+}
+
+// ChangeTaskPriority updates an unresolved task's priority. A claimed/running
+// run keeps its current priority until retried. The queue endpoint is marked
+// experimental upstream.
+func (tc *TC) ChangeTaskPriority(taskID, newPriority string) (*tcqueue.TaskStatusResponse, error) {
+	return tc.queue.ChangeTaskPriority(taskID, &tcqueue.ChangeTaskPriorityRequest{NewPriority: newPriority})
 }
 
 func (tc *TC) GetTaskStatus(taskID string) (*tcqueue.TaskStatusStructure, error) {

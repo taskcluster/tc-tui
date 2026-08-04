@@ -1846,9 +1846,9 @@ func TestRenderRestoredTopDropsUnresolvableEntriesThenFallsBackToRoot(t *testing
 // TestRenderRestoredTopRendersResolvableTopView confirms a resolvable
 // restored view stays on top of the stack while its fetch is in flight. It
 // no longer asserts on an "isRestore" flag directly: isRestore is now a
-// plain function argument private to loadDetail's goroutine (see Task 4 of
-// the implementation plan / the design doc), not an externally observable
-// field — and the argument's effect (recording/pop-and-retry decisions)
+// plain function argument private to loadDetail's goroutine, not an
+// externally observable field — and the argument's effect
+// (recording/pop-and-retry decisions)
 // lives entirely inside a QueueUpdateDraw callback, which never runs in
 // these tests since s.app.Run() is never called (see the waitFor helper's
 // comment above for the same, pre-existing limitation on the async

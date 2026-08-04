@@ -78,6 +78,15 @@ type Action struct {
 	// confirm button does anything.
 	Destructive bool
 
+	// RefreshAfter forces the shell to re-fetch the launching view after a
+	// successful Perform even when Destructive is true. A destructive action
+	// normally skips that refresh, because "destructive" has meant "delete" and
+	// re-Describing a deleted entity would 404. Set this for a destructive
+	// action that resolves-but-does-not-remove its entity (e.g. cancel a task),
+	// so the fresh state and re-gated actions show immediately. Ignored for a
+	// non-destructive action, which always refreshes.
+	RefreshAfter bool
+
 	// Prompt is the confirmation question shown before Perform runs, e.g.
 	// "Cancel task abc123? Running work will be stopped." Required.
 	Prompt string

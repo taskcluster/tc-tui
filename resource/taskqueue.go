@@ -8,11 +8,12 @@ import (
 )
 
 type PendingTasksResource struct {
-	tc taskcluster.Taskcluster
+	tc         taskcluster.Taskcluster
+	stateCache *taskStateCache
 }
 
-func NewPendingTasksResource(tc taskcluster.Taskcluster) *PendingTasksResource {
-	return &PendingTasksResource{tc: tc}
+func NewPendingTasksResource(tc taskcluster.Taskcluster, stateCache *taskStateCache) *PendingTasksResource {
+	return &PendingTasksResource{tc: tc, stateCache: stateCache}
 }
 
 func (r *PendingTasksResource) Name() string      { return "pending" }
@@ -79,7 +80,16 @@ func (r *PendingTasksResource) ScopeActions(scope string) []DetailAction {
 }
 
 func (r *PendingTasksResource) Describe(id string) (Detail, error) {
-	return describeTask(r.tc, id)
+	return describeTask(r.tc, r.stateCache, id)
+}
+
+// Actions offers a pending task's lifecycle actions on its detail (id != "");
+// the pending list itself carries no mutating action.
+func (r *PendingTasksResource) Actions(id string) []Action {
+	if id == "" {
+		return nil
+	}
+	return lifecycleActions(r.tc, r.stateCache, id)
 }
 
 func (r *PendingTasksResource) RefreshInterval() time.Duration {
@@ -98,11 +108,12 @@ func (r *PendingTasksResource) DetailWebURL(rootURL, id string) string {
 }
 
 type ClaimedTasksResource struct {
-	tc taskcluster.Taskcluster
+	tc         taskcluster.Taskcluster
+	stateCache *taskStateCache
 }
 
-func NewClaimedTasksResource(tc taskcluster.Taskcluster) *ClaimedTasksResource {
-	return &ClaimedTasksResource{tc: tc}
+func NewClaimedTasksResource(tc taskcluster.Taskcluster, stateCache *taskStateCache) *ClaimedTasksResource {
+	return &ClaimedTasksResource{tc: tc, stateCache: stateCache}
 }
 
 func (r *ClaimedTasksResource) Name() string      { return "claimed" }
@@ -167,7 +178,16 @@ func (r *ClaimedTasksResource) ScopeActions(scope string) []DetailAction {
 }
 
 func (r *ClaimedTasksResource) Describe(id string) (Detail, error) {
-	return describeTask(r.tc, id)
+	return describeTask(r.tc, r.stateCache, id)
+}
+
+// Actions offers a claimed task's lifecycle actions on its detail (id != "");
+// the claimed list itself carries no mutating action.
+func (r *ClaimedTasksResource) Actions(id string) []Action {
+	if id == "" {
+		return nil
+	}
+	return lifecycleActions(r.tc, r.stateCache, id)
 }
 
 func (r *ClaimedTasksResource) RefreshInterval() time.Duration {

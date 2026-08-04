@@ -631,8 +631,8 @@ func TestUpdateTaskTimestampsErrorsOnNonScalarTimestamp(t *testing.T) {
 
 func TestTasksAndTaskGroupShareHistory(t *testing.T) {
 	h := &taskDefHistory{}
-	tasks := NewTasksResource(&fakeTaskcluster{}, h)
-	group := NewTaskGroupResource(&fakeTaskcluster{}, h)
+	tasks := NewTasksResource(&fakeTaskcluster{}, h, nil)
+	group := NewTaskGroupResource(&fakeTaskcluster{}, h, nil)
 	h.add("shared def")
 	if a := tasks.Actions(""); a[0].InitialText != "shared def" {
 		t.Fatalf("tasks action did not seed from shared history: %q", a[0].InitialText)
@@ -928,7 +928,7 @@ func TestCreateTaskTemplateIsValid(t *testing.T) {
 }
 
 func TestTasksResourceExposesCreateActions(t *testing.T) {
-	r := NewTasksResource(&fakeTaskcluster{}, &taskDefHistory{})
+	r := NewTasksResource(&fakeTaskcluster{}, &taskDefHistory{}, nil)
 	actions := r.Actions("")
 	if len(actions) != 1 {
 		t.Fatalf("Actions = %+v, want a single create-task action", actions)
@@ -941,7 +941,7 @@ func TestTasksResourceExposesCreateActions(t *testing.T) {
 func TestTaskGroupResourceExposesCreateActions(t *testing.T) {
 	// The taskgroup list (`:g <id>`, or a task's 'g' jump) is the natural,
 	// directly reachable place to create a task, so it exposes the same action.
-	r := NewTaskGroupResource(&fakeTaskcluster{}, &taskDefHistory{})
+	r := NewTaskGroupResource(&fakeTaskcluster{}, &taskDefHistory{}, nil)
 	actions := r.Actions("")
 	if len(actions) != 1 {
 		t.Fatalf("Actions = %+v, want a single create-task action", actions)

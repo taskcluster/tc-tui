@@ -9,14 +9,13 @@ import (
 	"github.com/taskcluster/tc-tui/resource"
 )
 
-// actionModalWidth/Height size the centered action dialog. A multiline
-// (YAML/JSON/text) action gets a taller, wider box for its text area; a
-// confirm-only or single-line action gets a compact one.
+// actionModalWidth sizes the centered action dialog; a multiline
+// (YAML/JSON/text) action gets a wider box for its text area, while a
+// confirm-only or single-line action gets a compact one. The height is
+// computed per action in SetAction to fit its content exactly.
 const (
 	actionModalWidth          = 78
 	actionModalWidthMultiline = 96
-	actionModalHeight         = 11
-	actionModalHeightMulti    = 26
 	actionTextAreaHeight      = 12
 )
 
@@ -86,6 +85,22 @@ func (v *ActionView) SetAction(a resource.Action, onSubmit, onCancel func()) {
 	form := tview.NewForm()
 	form.SetButtonsAlign(tview.AlignRight)
 
+	// Make the focused button unmistakable. tview lays form buttons out one row
+	// high, so a drawn box border isn't possible here — instead the active
+	// button fills with a solid accent block (red for a destructive action,
+	// else the theme's border color) and bold dark text, while the inactive
+	// button stays a dim, unfilled label. The bracketed labels give both a
+	// visible frame; only the focused one lights up.
+	buttonAccent, buttonText := tview.Styles.BorderColor, tcell.ColorBlack
+	if a.Destructive {
+		buttonAccent, buttonText = tcell.ColorRed, tcell.ColorWhite
+	}
+	form.SetButtonStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+	form.SetButtonActivatedStyle(tcell.StyleDefault.
+		Background(buttonAccent).
+		Foreground(buttonText).
+		Bold(true))
+
 	next := 0
 	if a.Input != resource.InputNone {
 		label := a.InputLabel
@@ -122,12 +137,12 @@ func (v *ActionView) SetAction(a resource.Action, onSubmit, onCancel func()) {
 		next++
 	}
 
-	form.AddButton("Confirm", func() {
+	form.AddButton("[ Confirm ]", func() {
 		if v.onSubmit != nil {
 			v.onSubmit()
 		}
 	})
-	form.AddButton("Cancel", func() {
+	form.AddButton("[ Cancel ]", func() {
 		if v.onCancel != nil {
 			v.onCancel()
 		}
@@ -154,10 +169,24 @@ func (v *ActionView) SetAction(a resource.Action, onSubmit, onCancel func()) {
 		box.SetBorderColor(tcell.ColorRed).SetTitleColor(tcell.ColorRed)
 	}
 
-	width, height := actionModalWidth, actionModalHeight
+	width := actionModalWidth
 	if a.Input.Multiline() {
-		width, height = actionModalWidthMultiline, actionModalHeightMulti
+		width = actionModalWidthMultiline
 	}
+
+	// Size the box to fit its content exactly so tview's Form never scrolls a
+	// focused field or the button row out of view. (A fixed height that came up
+	// a row short clipped the buttons on confirm-only actions, and hid the
+	// input once focus reached the buttons.) The form draws each of its `next`
+	// items one row tall — actionTextAreaHeight for a multiline field — with a
+	// blank pad row after each, then the button row, all inside 1 row of border
+	// padding top and bottom.
+	extraTextArea := 0
+	if a.Input.Multiline() {
+		extraTextArea = actionTextAreaHeight - 1
+	}
+	formRows := 2*next + extraTextArea + 3               // item rows + pad rows + button row + form border padding
+	height := actionMessageHeight(a) + formRows + 2 + 2 // message + form + status + box border
 
 	// Rebuild the centered wrapper (spacer | box | spacer, vertically and
 	// horizontally) so the box floats mid-screen at the size this action
@@ -276,8 +305,6 @@ func actionMessageHeight(a resource.Action) int {
 	}
 	return 3
 }
-
-// --- Shell integration -----------------------------------------------------
 
 // startAction opens the action dialog for a, remembering which content page
 // to restore on close. The Shell drives the rest of the flow (submitAction,
@@ -475,11 +502,16 @@ func (s *Shell) finishAction(a resource.Action) {
 		}
 	}
 
-	if !a.Destructive {
+	if !a.Destructive || a.RefreshAfter {
 		// refreshCurrent re-fetches the top view; the list cache was just
 		// dropped above so a list re-fetches fresh, and a detail always
 		// re-Describes. Its re-render replaces the toast above, which is fine
 		// here — the refreshed content is the confirmation.
+		//
+		// A destructive action normally skips this (the entity may be gone and
+		// a re-Describe would 404), but one that resolves-but-doesn't-remove its
+		// entity (RefreshAfter, e.g. cancel a task) refreshes so the new state
+		// and re-gated actions show at once.
 		s.refreshCurrent()
 	}
 }
@@ -498,15 +530,14 @@ func (s *Shell) currentActionTarget() (res resource.Actionable, id string, ok bo
 	if top.Kind == DetailKind {
 		resourceName, entityID = top.ResourceName, top.SelectedID
 	} else {
-		// The highlighted row's id, when there is one, so a per-row action can
-		// fire straight from a list. An empty/still-loading list has no row —
-		// that's fine for a resource-level action (e.g. create task) that
-		// ignores the id, so resolve the resource with an empty id rather than
-		// making the action unreachable.
+		// List context resolves with an empty id, matching how renderList builds
+		// its action hints (Actions("")). This is the empty-id convention: a
+		// resource distinguishes its list-level action (e.g. create task) from a
+		// per-entity detail action (e.g. cancel this task) by whether id is
+		// empty. Threading the highlighted row's id here instead would make list
+		// dispatch disagree with the hints and let a detail-only action fire on
+		// a highlighted row it was never advertised for.
 		resourceName = top.ResourceName
-		if row, rok := s.table.SelectedRow(); rok {
-			entityID = row.ID
-		}
 	}
 
 	r, rok := s.registry.Resolve(resourceName)

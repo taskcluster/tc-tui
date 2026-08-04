@@ -17,7 +17,7 @@ func TestTaskDependenciesResourceScopedListReturnsNavigableRows(t *testing.T) {
 		},
 		taskStatus: &tcqueue.TaskStatusStructure{State: "completed"},
 	}
-	res := NewTaskDependenciesResource(fake)
+	res := NewTaskDependenciesResource(fake, nil)
 
 	rows, err := res.ScopedList("task-1")
 	if err != nil {
@@ -45,7 +45,7 @@ func TestTaskDependenciesResourceScopedListReturnsNavigableRows(t *testing.T) {
 
 func TestTaskDependenciesResourceScopedListPropagatesFetchError(t *testing.T) {
 	fake := &fakeTaskcluster{taskErr: errors.New("boom")}
-	res := NewTaskDependenciesResource(fake)
+	res := NewTaskDependenciesResource(fake, nil)
 
 	if _, err := res.ScopedList("task-1"); err == nil {
 		t.Fatalf("expected an error to propagate")
@@ -53,7 +53,7 @@ func TestTaskDependenciesResourceScopedListPropagatesFetchError(t *testing.T) {
 }
 
 func TestTaskDependenciesResourceListRequiresScope(t *testing.T) {
-	res := NewTaskDependenciesResource(&fakeTaskcluster{})
+	res := NewTaskDependenciesResource(&fakeTaskcluster{}, nil)
 
 	if _, err := res.List(); err == nil {
 		t.Fatalf("expected an error for an unscoped List call")
@@ -86,7 +86,7 @@ func TestTaskDependenciesResourceDescribeDelegatesToTaskDetail(t *testing.T) {
 		task:       &tcqueue.TaskDefinitionResponse{Metadata: tcqueue.TaskMetadata{Name: "dep-task"}},
 		taskStatus: &tcqueue.TaskStatusStructure{},
 	}
-	res := NewTaskDependenciesResource(fake)
+	res := NewTaskDependenciesResource(fake, nil)
 
 	detail, err := res.Describe("dep-1")
 	if err != nil {
@@ -106,7 +106,7 @@ func TestTaskDependentsResourceScopedListReturnsTaskRows(t *testing.T) {
 			},
 		},
 	}
-	res := NewTaskDependentsResource(fake)
+	res := NewTaskDependentsResource(fake, nil)
 
 	rows, err := res.ScopedList("task-1")
 	if err != nil {
@@ -128,7 +128,7 @@ func TestTaskDependentsResourceScopedListReturnsTaskRows(t *testing.T) {
 
 func TestTaskDependentsResourceScopedListPropagatesFetchError(t *testing.T) {
 	fake := &fakeTaskcluster{dependentTasksErr: errors.New("boom")}
-	res := NewTaskDependentsResource(fake)
+	res := NewTaskDependentsResource(fake, nil)
 
 	if _, err := res.ScopedList("task-1"); err == nil {
 		t.Fatalf("expected an error to propagate")
@@ -136,7 +136,7 @@ func TestTaskDependentsResourceScopedListPropagatesFetchError(t *testing.T) {
 }
 
 func TestTaskDependentsResourceListRequiresScope(t *testing.T) {
-	res := NewTaskDependentsResource(&fakeTaskcluster{})
+	res := NewTaskDependentsResource(&fakeTaskcluster{}, nil)
 
 	if _, err := res.List(); err == nil {
 		t.Fatalf("expected an error for an unscoped List call")

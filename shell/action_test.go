@@ -199,6 +199,69 @@ func TestNonDestructiveActionRefreshesCurrentView(t *testing.T) {
 	waitFor(t, func() bool { return readOnUI(s, func() bool { return !s.actionOpen }) })
 }
 
+func TestDestructiveActionWithRefreshAfterRefreshesView(t *testing.T) {
+	action := resource.Action{
+		Key:          'K',
+		Label:        "cancel widget",
+		Destructive:  true,
+		RefreshAfter: true,
+		Prompt:       "Cancel widget w1?",
+		Perform:      func(resource.ActionInput) error { return nil },
+	}
+	s, res := actionableShell(t, []resource.Action{action})
+	startRunning(t, s)
+
+	s.app.QueueUpdateDraw(func() { s.startAction(action); s.submitAction() })
+
+	// A destructive action that resolves-but-doesn't-delete opts into the
+	// post-action refresh, so its detail re-Describes to show the new state.
+	waitFor(t, func() bool { return atomic.LoadInt32(res.describeCalls) >= 1 })
+	waitFor(t, func() bool { return readOnUI(s, func() bool { return !s.actionOpen }) })
+}
+
+func TestDestructiveActionWithoutRefreshAfterSkipsRefresh(t *testing.T) {
+	action := resource.Action{
+		Key:         'd',
+		Label:       "delete widget",
+		Destructive: true,
+		Prompt:      "Delete widget w1?",
+		Perform:     func(resource.ActionInput) error { return nil },
+	}
+	s, res := actionableShell(t, []resource.Action{action})
+	startRunning(t, s)
+
+	s.app.QueueUpdateDraw(func() { s.startAction(action); s.submitAction() })
+	waitFor(t, func() bool { return readOnUI(s, func() bool { return !s.actionOpen }) })
+
+	// A plain destructive (delete-style) action must NOT re-Describe — the
+	// entity may be gone and a re-fetch would 404.
+	if got := atomic.LoadInt32(res.describeCalls); got != 0 {
+		t.Fatalf("destructive delete refreshed the view (%d Describe calls); want 0", got)
+	}
+}
+
+// currentActionTarget must resolve a list view with an empty id (list context),
+// even when a row is highlighted, so list action hints and dispatch agree and a
+// per-id (detail-only) lifecycle key stays inert on a list.
+func TestCurrentActionTargetPassesEmptyIdForList(t *testing.T) {
+	s, _ := actionableShell(t, []resource.Action{{Key: 'c', Label: "create widget"}})
+	s.stack.Push(View{ResourceName: "widgets", Kind: ListKind})
+	s.table.SetData(
+		[]resource.Column{{Title: "ID"}},
+		[]resource.Row{{ID: "row1", Cells: []string{"row1"}}},
+		SortState{},
+	)
+	s.table.Select(1, 0)
+
+	_, id, ok := s.currentActionTarget()
+	if !ok {
+		t.Fatal("expected the list's actionable resource to resolve")
+	}
+	if id != "" {
+		t.Fatalf("list context should resolve an empty id, got %q", id)
+	}
+}
+
 func TestActionNextNavigatesToCreatedEntityOnSuccess(t *testing.T) {
 	const createdID = "NEW-task-123"
 	action := resource.Action{
@@ -605,5 +668,80 @@ func TestRenderHeaderHintsShowsActionKeys(t *testing.T) {
 	text := s.headerHint.GetText(false)
 	if !strings.Contains(text, "delete widget") || !strings.Contains(text, "d") {
 		t.Fatalf("expected the action key hint to be shown, got %q", text)
+	}
+}
+
+// renderActionView draws v to an offscreen simulation screen and returns the
+// visible text, one string per row. It's how the button-visibility tests below
+// assert on what's actually painted rather than on internal focus state.
+func renderActionView(t *testing.T, v *ActionView, width, height int) string {
+	t.Helper()
+	screen := tcell.NewSimulationScreen("")
+	if err := screen.Init(); err != nil {
+		t.Fatalf("failed to init simulation screen: %v", err)
+	}
+	screen.SetSize(width, height)
+	v.SetRect(0, 0, width, height)
+	v.Draw(screen)
+	screen.Show()
+
+	cells, w, h := screen.GetContents()
+	var b strings.Builder
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			runes := cells[y*w+x].Runes
+			if len(runes) == 0 {
+				b.WriteRune(' ')
+				continue
+			}
+			b.WriteString(string(runes))
+		}
+		b.WriteRune('\n')
+	}
+	return b.String()
+}
+
+// TestActionViewRendersBothButtons guards against the dialog opening too short
+// for its content: tview's Form scrolls to keep only the focused item visible,
+// so a box a row short clipped the button row on a confirm-only action and hid
+// the input once focus reached the buttons. Both buttons — and any input —
+// must be painted at once, without tabbing.
+func TestActionViewRendersBothButtons(t *testing.T) {
+	tests := []struct {
+		name   string
+		action resource.Action
+		want   []string
+	}{
+		{
+			name: "confirm-only destructive",
+			action: resource.Action{
+				Label:       "cancel task",
+				Prompt:      "Cancel task GJ8BQGOPS62axPVVkc0qiQ? Its current run will be resolved as an exception with reason \"canceled\".",
+				Destructive: true,
+			},
+			want: []string{"[ Confirm ]", "[ Cancel ]"},
+		},
+		{
+			name: "single-line input",
+			action: resource.Action{
+				Label:      "change priority",
+				Prompt:     "Change priority of task GJ8BQGOPS62axPVVkc0qiQ — one of: highest, very-high, high, medium, low, very-low, lowest, normal.",
+				Input:      resource.InputLine,
+				InputLabel: "priority",
+			},
+			want: []string{"priority", "[ Confirm ]", "[ Cancel ]"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			v := NewActionView()
+			v.SetAction(tc.action, func() {}, func() {})
+			got := renderActionView(t, v, 160, 40)
+			for _, want := range tc.want {
+				if !strings.Contains(got, want) {
+					t.Errorf("rendered dialog missing %q; got:\n%s", want, got)
+				}
+			}
+		})
 	}
 }

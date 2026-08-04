@@ -12,9 +12,8 @@ import (
 )
 
 // editorConfirmWidth/Height size the centered confirm box, mirroring
-// actionModalWidthMultiline/actionModalHeightMulti. Height is two rows taller
-// than that to fit the dedicated hint line and its separator (see hints,
-// separator).
+// actionModalWidthMultiline. Height is generous to fit the scrollable buffer
+// plus the dedicated hint line and its separator (see hints, separator).
 const (
 	editorConfirmWidth  = 96
 	editorConfirmHeight = 32
