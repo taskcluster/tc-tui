@@ -80,6 +80,14 @@ func (s *Shell) renderHeaderHints() {
 			colored: fmt.Sprintf("[yellow]%c[white] %s", action.Key, action.Label),
 		})
 	}
+	// Mutating actions get a red key so an authenticated/destructive
+	// operation reads differently at a glance from a plain navigation hint.
+	for _, action := range s.currentActions {
+		hints = append(hints, hint{
+			plain:   fmt.Sprintf("%c %s", action.Key, action.Label),
+			colored: fmt.Sprintf("[red]%c[white] %s", action.Key, action.Label),
+		})
+	}
 
 	// Each column is only as wide as the widest hint that actually falls in
 	// it, not the widest hint overall — otherwise one long hint (e.g. the
@@ -284,9 +292,12 @@ func (s *Shell) handleFooterInputDone(key tcell.Key) {
 			s.recordFooterHistory(s.footerHistoryKey, s.footerInput.GetText())
 			name, scope := splitCommand(s.footerInput.GetText())
 			s.closeFooterInput()
-			if strings.EqualFold(name, "help") {
+			switch {
+			case strings.EqualFold(name, "help"):
 				s.openHelp()
-			} else {
+			case isQuitCommand(name):
+				s.Stop()
+			default:
 				s.switchResource(name, scope)
 			}
 		case footerFilter:

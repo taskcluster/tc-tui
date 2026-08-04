@@ -14,11 +14,25 @@ import (
 // does (see taskListRows/taskListColumns), with the group's sealed status
 // surfaced via Subtitle rather than a page of its own.
 type TaskGroupResource struct {
-	tc taskcluster.Taskcluster
+	tc         taskcluster.Taskcluster
+	history    *taskDefHistory
+	stateCache *taskStateCache
 }
 
-func NewTaskGroupResource(tc taskcluster.Taskcluster) *TaskGroupResource {
-	return &TaskGroupResource{tc: tc}
+func NewTaskGroupResource(tc taskcluster.Taskcluster, history *taskDefHistory, stateCache *taskStateCache) *TaskGroupResource {
+	return &TaskGroupResource{tc: tc, history: history, stateCache: stateCache}
+}
+
+// Actions splits by context on the empty-id convention.
+// The taskgroup *list* (id == "", reached via `:g <id>` or a task's 'g' jump)
+// offers create-task — the natural place to create a task, without needing the
+// `:tasks <id>` alias. Selecting a task row opens that task's detail rendered by
+// this same resource, so a non-empty id offers that task's lifecycle actions.
+func (r *TaskGroupResource) Actions(id string) []Action {
+	if id == "" {
+		return []Action{createTaskAction(r.tc, r.history)}
+	}
+	return lifecycleActions(r.tc, r.stateCache, id)
 }
 
 func (r *TaskGroupResource) Name() string      { return "taskgroup" }
@@ -74,7 +88,7 @@ func (r *TaskGroupResource) Subtitle(taskGroupID string) (string, error) {
 }
 
 func (r *TaskGroupResource) Describe(id string) (Detail, error) {
-	return describeTask(r.tc, id)
+	return describeTask(r.tc, r.stateCache, id)
 }
 
 func (r *TaskGroupResource) RefreshInterval() time.Duration {

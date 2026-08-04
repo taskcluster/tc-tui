@@ -20,7 +20,7 @@ func TestTasksResourceListPartialCapsFetchAndReportsMore(t *testing.T) {
 		},
 		taskGroupTasksTruncated: true,
 	}
-	res := NewTasksResource(fake)
+	res := NewTasksResource(fake, &taskDefHistory{}, nil)
 
 	rows, more, err := res.ListPartial("group-1", "", false)
 	if err != nil {
@@ -39,7 +39,7 @@ func TestTasksResourceListPartialCapsFetchAndReportsMore(t *testing.T) {
 
 func TestTasksResourceListPartialLoadAllLiftsCap(t *testing.T) {
 	fake := &fakeTaskcluster{}
-	res := NewTasksResource(fake)
+	res := NewTasksResource(fake, &taskDefHistory{}, nil)
 
 	_, more, err := res.ListPartial("group-1", "", true)
 	if err != nil {
@@ -55,7 +55,7 @@ func TestTasksResourceListPartialLoadAllLiftsCap(t *testing.T) {
 
 func TestTaskGroupResourceListPartialCapsFetch(t *testing.T) {
 	fake := &fakeTaskcluster{taskGroupTasksTruncated: true}
-	res := NewTaskGroupResource(fake)
+	res := NewTaskGroupResource(fake, &taskDefHistory{}, nil)
 
 	_, more, err := res.ListPartial("group-1", "", false)
 	if err != nil {
@@ -114,7 +114,7 @@ func TestWorkersResourceListPartialLoadAllLiftsCap(t *testing.T) {
 
 func TestPendingTasksResourceListPartialCapsFetch(t *testing.T) {
 	fake := &fakeTaskcluster{pendingTasksTruncated: true}
-	res := NewPendingTasksResource(fake)
+	res := NewPendingTasksResource(fake, nil)
 
 	_, more, err := res.ListPartial("gcp/pool-a", "", false)
 	if err != nil {
@@ -130,7 +130,7 @@ func TestPendingTasksResourceListPartialCapsFetch(t *testing.T) {
 
 func TestClaimedTasksResourceListPartialCapsFetch(t *testing.T) {
 	fake := &fakeTaskcluster{claimedTasksTruncated: true}
-	res := NewClaimedTasksResource(fake)
+	res := NewClaimedTasksResource(fake, nil)
 
 	_, more, err := res.ListPartial("gcp/pool-a", "", false)
 	if err != nil {
@@ -147,7 +147,7 @@ func TestClaimedTasksResourceListPartialCapsFetch(t *testing.T) {
 func TestListPartialPropagatesError(t *testing.T) {
 	wantErr := errors.New("boom")
 	fake := &fakeTaskcluster{taskGroupTasksErr: wantErr}
-	res := NewTasksResource(fake)
+	res := NewTasksResource(fake, &taskDefHistory{}, nil)
 
 	_, _, err := res.ListPartial("group-1", "", false)
 	if !errors.Is(err, wantErr) {

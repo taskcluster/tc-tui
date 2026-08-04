@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"strings"
 	"sync/atomic"
 
 	"github.com/gdamore/tcell/v2"
@@ -11,10 +12,12 @@ import (
 )
 
 const (
-	pageTable  = "table"
-	pageDetail = "detail"
-	pageError  = "error"
-	pageHelp   = "help"
+	pageTable         = "table"
+	pageDetail        = "detail"
+	pageError         = "error"
+	pageHelp          = "help"
+	pageAction        = "action"
+	pageEditorConfirm = "editorConfirm"
 
 	pageFooterBreadcrumb = "breadcrumb"
 	pageFooterInput      = "input"
@@ -56,14 +59,35 @@ type Shell struct {
 	headerLeft *tview.TextView
 	headerHint *tview.TextView
 
-	content   *tview.Pages
-	table     *TableView
-	detail    *DetailView
-	errorView *ErrorView
-	helpView  *HelpView
+	content       *tview.Pages
+	table         *TableView
+	detail        *DetailView
+	errorView     *ErrorView
+	helpView      *HelpView
+	actionView    *ActionView
+	editorConfirm *EditorConfirmView
 
 	helpOpen    bool
 	preHelpPage string
+
+	// actionOpen is true while the authenticated-action dialog (ActionView)
+	// is front and focused. Like footerMode/helpOpen it gates
+	// globalInputCapture: every key passes straight through to the dialog's
+	// form so the user can type/tab/confirm, rather than being intercepted as
+	// a global shortcut.
+	actionOpen bool
+	// actionBusy is true while the current action's Perform is running, so a
+	// second Confirm activation is ignored until it finishes.
+	actionBusy bool
+	// actionReturnPage is the content page to restore when the dialog closes.
+	actionReturnPage string
+	// currentAction is the action the open dialog is collecting input for.
+	currentAction resource.Action
+
+	// openInEditor is a seam over the package-level editInEditor so tests can
+	// simulate an $EDITOR round trip (success, failure, or an unavailable
+	// screen) without shelling out or suspending a real terminal.
+	openInEditor func(seed string) (string, error)
 
 	footer              *tview.Pages
 	footerBreadcrumb    *tview.TextView
@@ -94,9 +118,16 @@ type Shell struct {
 	currentDetailActions []resource.DetailAction
 	currentDetailTitle   string
 
+	// currentActions holds the mutating actions the current Detail entity
+	// exposes (via resource.Actionable), used to render their key hints in
+	// the header. Dispatch resolves actions fresh at key-press time (see
+	// resolveActionByKey) rather than from this slice, so it's purely for the
+	// hint row; nil when the current view has none.
+	currentActions []resource.Action
+
 	// currentListTruncated reports whether the current list view's rows were
 	// capped at the safe fetch limit with more left unfetched server-side
-	// (see resource.PartialLister) — drives refreshTable's "[N+]" title
+	// (see resource.PartialLister) — drives refreshTable's "N+" row-count title
 	// suffix and the 'L' load-all key and hint.
 	currentListTruncated bool
 
@@ -184,6 +215,12 @@ type Shell struct {
 	// terminal draw cost. Always nil in production.
 	onAugmentRedrawForTest func()
 
+	// onStopForTest, if set, is called by Stop before app.Stop() — a test-only
+	// seam for asserting a quit was triggered (e.g. via the `:quit` command),
+	// since tview's Application doesn't expose whether it's running. Always nil
+	// in production.
+	onStopForTest func()
+
 	activeContent tview.Primitive
 
 	stopRefresh chan struct{}
@@ -244,6 +281,12 @@ type Shell struct {
 }
 
 func New(registry *resource.Registry) *Shell {
+	// Let the terminal supply the background instead of painting tview's
+	// default ColorBlack over every primitive. Besides respecting the user's
+	// terminal theme, ColorDefault allows terminal emulators such as Ghostty
+	// to preserve their configured background transparency.
+	tview.Styles.PrimitiveBackgroundColor = tcell.ColorDefault
+
 	s := &Shell{
 		app:              tview.NewApplication(),
 		registry:         registry,
@@ -293,12 +336,17 @@ func (s *Shell) init() {
 
 	s.errorView = NewErrorView()
 	s.helpView = NewHelpView()
+	s.actionView = NewActionView()
+	s.editorConfirm = NewEditorConfirmView()
+	s.openInEditor = func(seed string) (string, error) { return editInEditor(s.app, seed) }
 
 	s.content = tview.NewPages().
 		AddPage(pageTable, s.tableContainer, true, true).
 		AddPage(pageDetail, s.detail, true, false).
 		AddPage(pageError, s.errorView, true, false).
-		AddPage(pageHelp, s.helpView, true, false)
+		AddPage(pageHelp, s.helpView, true, false).
+		AddPage(pageAction, s.actionView, true, false).
+		AddPage(pageEditorConfirm, s.editorConfirm, true, false)
 	s.content.SetBorder(true)
 	s.activeContent = s.table
 
@@ -357,6 +405,13 @@ func (s *Shell) globalInputCapture(event *tcell.EventKey) *tcell.EventKey {
 			s.cycleFooterHistory(1)
 			return nil
 		}
+		return event
+	}
+
+	// While the action dialog is open every key belongs to its form (typing
+	// into a YAML/reason field, Tab between fields/buttons, Enter to confirm,
+	// Esc to cancel) — never a global shortcut.
+	if s.actionOpen {
 		return event
 	}
 
@@ -435,6 +490,14 @@ func (s *Shell) globalInputCapture(event *tcell.EventKey) *tcell.EventKey {
 				return nil
 			}
 		}
+		// Mutating actions (Actionable) are dispatched after navigation
+		// actions so a resource can't accidentally shadow a navigation key,
+		// and resolved against the current target at press time so a
+		// list-row action reflects the highlighted row.
+		if action, ok := s.resolveActionByKey(event.Rune()); ok {
+			s.startAction(action)
+			return nil
+		}
 	}
 
 	return event
@@ -442,6 +505,13 @@ func (s *Shell) globalInputCapture(event *tcell.EventKey) *tcell.EventKey {
 
 func isQuitKey(event *tcell.EventKey) bool {
 	return event.Key() == tcell.KeyRune && event.Rune() == 'q'
+}
+
+// isQuitCommand reports whether a `:` command-bar word means "quit the app",
+// the command-bar counterpart of the global `q` key (isQuitKey). Accepts the
+// long form and the single-letter shorthand.
+func isQuitCommand(name string) bool {
+	return strings.EqualFold(name, "quit") || strings.EqualFold(name, "q")
 }
 
 // hasFacets reports whether the current list view has a facet tab bar —
@@ -510,14 +580,29 @@ func (s *Shell) Start(rootResource string) error {
 // StartAt behaves like Start, but jumps straight to name/scope (resolved the
 // same way as the `:` command bar — see switchResource) instead of restored
 // state or a fallback root resource, discarding any restored navigation
-// stack. Used when the CLI is given a positional resource argument.
-func (s *Shell) StartAt(name, scope string) error {
-	s.switchResource(name, scope)
+// stack. Used when the CLI is given a positional resource argument. root
+// seeds the fallback the command-action cold-start guard renders underneath a
+// command-only target (see switchResource), so cancelling or a failed editor
+// launch returns to a usable screen instead of a blank one.
+//
+// The initial dispatch is queued from a separate goroutine (via
+// QueueUpdateDraw) rather than called synchronously here, so it lands on the
+// event-loop goroutine once Run() is draining updates rather than racing
+// ahead of it — required because a command-only resource (:createtask)
+// suspends to $EDITOR, which no-ops before the screen exists. Calling
+// QueueUpdate synchronously on this goroutine (the same one about to call
+// Run()) would deadlock instead.
+func (s *Shell) StartAt(root, name, scope string) error {
+	s.restoreFallback = root
+	go s.app.QueueUpdateDraw(func() { s.switchResource(name, scope) })
 	return s.app.Run()
 }
 
 func (s *Shell) Stop() {
 	s.stopRefreshLoop()
+	if s.onStopForTest != nil {
+		s.onStopForTest()
+	}
 	s.app.Stop()
 }
 

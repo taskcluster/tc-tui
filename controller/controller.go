@@ -46,15 +46,18 @@ func buildRegistry(tc taskcluster.Taskcluster) *resource.Registry {
 	registry.Register(resource.NewWorkerRecentTasksResource(tc))
 	registry.Register(resource.NewLaunchConfigsResource(tc))
 	registry.Register(resource.NewErrorsResource(tc))
-	registry.Register(resource.NewTaskResource(tc))
-	registry.Register(resource.NewTaskGroupResource(tc))
-	registry.Register(resource.NewTasksResource(tc))
-	registry.Register(resource.NewTaskDependenciesResource(tc))
-	registry.Register(resource.NewTaskDependentsResource(tc))
+	taskHistory := resource.NewTaskDefHistory()
+	taskStateCache := resource.NewTaskStateCache()
+	registry.Register(resource.NewTaskResource(tc, taskStateCache))
+	registry.Register(resource.NewTaskGroupResource(tc, taskHistory, taskStateCache))
+	registry.Register(resource.NewTasksResource(tc, taskHistory, taskStateCache))
+	registry.Register(resource.NewCreateTaskResource(tc, taskHistory))
+	registry.Register(resource.NewTaskDependenciesResource(tc, taskStateCache))
+	registry.Register(resource.NewTaskDependentsResource(tc, taskStateCache))
 	registry.Register(resource.NewTaskRunsResource(tc))
 	registry.Register(resource.NewTaskArtifactsResource(tc))
-	registry.Register(resource.NewPendingTasksResource(tc))
-	registry.Register(resource.NewClaimedTasksResource(tc))
+	registry.Register(resource.NewPendingTasksResource(tc, taskStateCache))
+	registry.Register(resource.NewClaimedTasksResource(tc, taskStateCache))
 	registry.Register(resource.NewGithubBuildsResource(tc))
 	registry.Register(resource.NewGithubRepositoryResource(tc))
 	registry.Register(resource.NewHistoryResource())
@@ -95,7 +98,7 @@ func (c *Controller) StartUI() error {
 }
 
 func (c *Controller) StartUIAt(name, scope string) error {
-	return c.run(func() error { return c.shell.StartAt(name, scope) })
+	return c.run(func() error { return c.shell.StartAt(rootResource, name, scope) })
 }
 
 // run wires up header info and persists navigation state around whichever

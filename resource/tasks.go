@@ -11,11 +11,12 @@ import (
 )
 
 type TaskResource struct {
-	tc taskcluster.Taskcluster
+	tc         taskcluster.Taskcluster
+	stateCache *taskStateCache
 }
 
-func NewTaskResource(tc taskcluster.Taskcluster) *TaskResource {
-	return &TaskResource{tc: tc}
+func NewTaskResource(tc taskcluster.Taskcluster, stateCache *taskStateCache) *TaskResource {
+	return &TaskResource{tc: tc, stateCache: stateCache}
 }
 
 func (r *TaskResource) Name() string          { return "task" }
@@ -31,7 +32,17 @@ func (r *TaskResource) List() ([]Row, error) {
 }
 
 func (r *TaskResource) Describe(id string) (Detail, error) {
-	return describeTask(r.tc, id)
+	return describeTask(r.tc, r.stateCache, id)
+}
+
+// Actions exposes the task's lifecycle actions (resource.Actionable). A
+// TaskResource is DirectLookup — it only ever renders a detail — so a
+// non-empty id yields the actions and an empty id (no list here) yields none.
+func (r *TaskResource) Actions(id string) []Action {
+	if id == "" {
+		return nil
+	}
+	return lifecycleActions(r.tc, r.stateCache, id)
 }
 
 func (r *TaskResource) RefreshInterval() time.Duration {
@@ -47,11 +58,24 @@ func (r *TaskResource) DetailWebURL(rootURL, id string) string {
 }
 
 type TasksResource struct {
-	tc taskcluster.Taskcluster
+	tc         taskcluster.Taskcluster
+	history    *taskDefHistory
+	stateCache *taskStateCache
 }
 
-func NewTasksResource(tc taskcluster.Taskcluster) *TasksResource {
-	return &TasksResource{tc: tc}
+func NewTasksResource(tc taskcluster.Taskcluster, history *taskDefHistory, stateCache *taskStateCache) *TasksResource {
+	return &TasksResource{tc: tc, history: history, stateCache: stateCache}
+}
+
+// Actions splits by context on the empty-id convention:
+// the list view (id == "") offers the create-task action, while a specific
+// task's detail (id != "") offers that task's lifecycle actions. The returned
+// Actions are fresh each call, carrying their own per-dialog state.
+func (r *TasksResource) Actions(id string) []Action {
+	if id == "" {
+		return []Action{createTaskAction(r.tc, r.history)}
+	}
+	return lifecycleActions(r.tc, r.stateCache, id)
 }
 
 func (r *TasksResource) Name() string      { return "tasks" }
@@ -91,7 +115,7 @@ func (r *TasksResource) EmptyScopeResource() string {
 }
 
 func (r *TasksResource) Describe(id string) (Detail, error) {
-	return describeTask(r.tc, id)
+	return describeTask(r.tc, r.stateCache, id)
 }
 
 func (r *TasksResource) RefreshInterval() time.Duration {
@@ -142,7 +166,7 @@ func taskListRows(tasks taskcluster.TaskGroupTaskList) []Row {
 // describeTask renders a single task's full detail (definition + status),
 // shared by TaskResource, TasksResource, and the pending/claimed task-queue
 // resources — all of them ultimately show the same screen for a task ID.
-func describeTask(tc taskcluster.Taskcluster, taskID string) (Detail, error) {
+func describeTask(tc taskcluster.Taskcluster, stateCache *taskStateCache, taskID string) (Detail, error) {
 	task, err := tc.GetTask(taskID)
 	if err != nil {
 		return Detail{}, err
@@ -152,6 +176,11 @@ func describeTask(tc taskcluster.Taskcluster, taskID string) (Detail, error) {
 	if err != nil {
 		return Detail{}, err
 	}
+
+	// Record what a synchronous, UI-thread Actions(id) call can't fetch itself:
+	// the current state (to gate lifecycle actions) and priority (to prefill the
+	// change-priority input). Nil-safe when no cache is wired.
+	stateCache.record(taskID, status.State, task.Priority, time.Now())
 
 	var runs strings.Builder
 	for _, run := range status.Runs {

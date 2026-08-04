@@ -83,7 +83,7 @@ func TestErrorsResourceWebURL(t *testing.T) {
 }
 
 func TestPendingAndClaimedTasksResourceWebURL(t *testing.T) {
-	pending := NewPendingTasksResource(&fakeTaskcluster{})
+	pending := NewPendingTasksResource(&fakeTaskcluster{}, nil)
 	if got, want := pending.ListWebURL(testRootURL, "gecko-3/b-linux"),
 		testRootURL+"/provisioners/gecko-3/worker-types/b-linux/pending-tasks"; got != want {
 		t.Errorf("pending ListWebURL = %q, want %q", got, want)
@@ -92,7 +92,7 @@ func TestPendingAndClaimedTasksResourceWebURL(t *testing.T) {
 		t.Errorf("pending DetailWebURL = %q, want %q", got, want)
 	}
 
-	claimed := NewClaimedTasksResource(&fakeTaskcluster{})
+	claimed := NewClaimedTasksResource(&fakeTaskcluster{}, nil)
 	if got, want := claimed.ListWebURL(testRootURL, "gecko-3/b-linux"),
 		testRootURL+"/provisioners/gecko-3/worker-types/b-linux/claimed-tasks"; got != want {
 		t.Errorf("claimed ListWebURL = %q, want %q", got, want)
@@ -100,7 +100,7 @@ func TestPendingAndClaimedTasksResourceWebURL(t *testing.T) {
 }
 
 func TestTaskResourceWebURL(t *testing.T) {
-	res := NewTaskResource(&fakeTaskcluster{})
+	res := NewTaskResource(&fakeTaskcluster{}, nil)
 
 	if got, want := res.DetailWebURL(testRootURL, "TASK1"), testRootURL+"/tasks/TASK1"; got != want {
 		t.Errorf("DetailWebURL = %q, want %q", got, want)
@@ -111,7 +111,7 @@ func TestTaskResourceWebURL(t *testing.T) {
 }
 
 func TestTasksResourceWebURL(t *testing.T) {
-	res := NewTasksResource(&fakeTaskcluster{})
+	res := NewTasksResource(&fakeTaskcluster{}, &taskDefHistory{}, nil)
 
 	if got, want := res.ListWebURL(testRootURL, "GROUP1"), testRootURL+"/tasks/groups/GROUP1"; got != want {
 		t.Errorf("ListWebURL = %q, want %q", got, want)
@@ -122,7 +122,7 @@ func TestTasksResourceWebURL(t *testing.T) {
 }
 
 func TestTaskGroupResourceWebURL(t *testing.T) {
-	res := NewTaskGroupResource(&fakeTaskcluster{})
+	res := NewTaskGroupResource(&fakeTaskcluster{}, &taskDefHistory{}, nil)
 
 	if got, want := res.ListWebURL(testRootURL, "GROUP1"), testRootURL+"/tasks/groups/GROUP1"; got != want {
 		t.Errorf("ListWebURL = %q, want %q", got, want)
@@ -133,7 +133,7 @@ func TestTaskGroupResourceWebURL(t *testing.T) {
 }
 
 func TestTaskDependenciesAndDependentsResourceWebURL(t *testing.T) {
-	deps := NewTaskDependenciesResource(&fakeTaskcluster{})
+	deps := NewTaskDependenciesResource(&fakeTaskcluster{}, nil)
 	if got, want := deps.ListWebURL(testRootURL, "TASK1"), testRootURL+"/tasks/TASK1"; got != want {
 		t.Errorf("dependencies ListWebURL = %q, want %q", got, want)
 	}
@@ -141,7 +141,7 @@ func TestTaskDependenciesAndDependentsResourceWebURL(t *testing.T) {
 		t.Errorf("dependencies DetailWebURL = %q, want %q", got, want)
 	}
 
-	dependents := NewTaskDependentsResource(&fakeTaskcluster{})
+	dependents := NewTaskDependentsResource(&fakeTaskcluster{}, nil)
 	if got, want := dependents.ListWebURL(testRootURL, "TASK1"), testRootURL+"/tasks/TASK1"; got != want {
 		t.Errorf("dependents ListWebURL = %q, want %q", got, want)
 	}

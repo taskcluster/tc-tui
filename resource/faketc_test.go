@@ -1,6 +1,7 @@
 package resource
 
 import (
+	"encoding/json"
 	"regexp"
 
 	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcauth"
@@ -78,6 +79,29 @@ type fakeTaskcluster struct {
 
 	task    *tcqueue.TaskDefinitionResponse
 	taskErr error
+
+	createTaskResp *tcqueue.TaskStatusResponse
+	createTaskErr  error
+	createTaskID   string          // last taskID CreateTask was called with
+	createTaskBody json.RawMessage // last raw definition body CreateTask was called with
+	createTaskN    int             // number of times CreateTask was called
+
+	cancelTaskID   string // last taskID CancelTask was called with
+	cancelTaskResp *tcqueue.TaskStatusResponse
+	cancelTaskErr  error
+
+	rerunTaskID   string // last taskID RerunTask was called with
+	rerunTaskResp *tcqueue.TaskStatusResponse
+	rerunTaskErr  error
+
+	scheduleTaskID   string // last taskID ScheduleTask was called with
+	scheduleTaskResp *tcqueue.TaskStatusResponse
+	scheduleTaskErr  error
+
+	changePriorityID    string // last taskID ChangeTaskPriority was called with
+	changePriorityValue string // last newPriority ChangeTaskPriority was called with
+	changePriorityResp  *tcqueue.TaskStatusResponse
+	changePriorityErr   error
 
 	taskStatus    *tcqueue.TaskStatusStructure
 	taskStatusErr error
@@ -235,6 +259,34 @@ func (f *fakeTaskcluster) GetWorkerPoolErrorCount(workerPoolID string) (int, err
 
 func (f *fakeTaskcluster) GetTask(taskID string) (*tcqueue.TaskDefinitionResponse, error) {
 	return f.task, f.taskErr
+}
+
+func (f *fakeTaskcluster) CreateTask(taskID string, body json.RawMessage) (*tcqueue.TaskStatusResponse, error) {
+	f.createTaskID = taskID
+	f.createTaskBody = body
+	f.createTaskN++
+	return f.createTaskResp, f.createTaskErr
+}
+
+func (f *fakeTaskcluster) CancelTask(taskID string) (*tcqueue.TaskStatusResponse, error) {
+	f.cancelTaskID = taskID
+	return f.cancelTaskResp, f.cancelTaskErr
+}
+
+func (f *fakeTaskcluster) RerunTask(taskID string) (*tcqueue.TaskStatusResponse, error) {
+	f.rerunTaskID = taskID
+	return f.rerunTaskResp, f.rerunTaskErr
+}
+
+func (f *fakeTaskcluster) ScheduleTask(taskID string) (*tcqueue.TaskStatusResponse, error) {
+	f.scheduleTaskID = taskID
+	return f.scheduleTaskResp, f.scheduleTaskErr
+}
+
+func (f *fakeTaskcluster) ChangeTaskPriority(taskID, newPriority string) (*tcqueue.TaskStatusResponse, error) {
+	f.changePriorityID = taskID
+	f.changePriorityValue = newPriority
+	return f.changePriorityResp, f.changePriorityErr
 }
 
 func (f *fakeTaskcluster) GetTaskStatus(taskID string) (*tcqueue.TaskStatusStructure, error) {

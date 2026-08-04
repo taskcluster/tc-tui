@@ -72,6 +72,21 @@ func (s *Shell) switchResource(nameOrAlias, scope string) {
 		return
 	}
 
+	// A command-only resource (:createtask) has no list/detail view — fire its
+	// single action directly, overlaying whatever screen is showing. On a cold
+	// start (CLI `tc-tui createtask`) there is no view underneath; establish the
+	// root fallback first so cancel or an editor-launch failure returns to a
+	// usable screen, not a blank one. (restoreFallback is set by StartAt/Start;
+	// when empty — e.g. unit tests with a pushed base stack — the guard is a
+	// no-op because Top() already exists.)
+	if ca, isCommand := res.(resource.CommandAction); isCommand {
+		if _, hasBase := s.stack.Top(); !hasBase && s.restoreFallback != "" {
+			s.switchResource(s.restoreFallback, "")
+		}
+		s.startAction(ca.CommandAction())
+		return
+	}
+
 	// res is a plain Resource: no ScopedList, no DirectLookup. A second
 	// argument here can only mean "open this id directly" (e.g. `:workerpools
 	// proj-taskcluster/ci`) — res.List() takes no scope, so there's no scoped
@@ -361,19 +376,6 @@ func (s *Shell) refreshTable() {
 	if s.filterQuery != "" {
 		title += " (" + s.filterQuery + ")"
 	}
-	if s.currentListTruncated {
-		// The fetch stopped at the safe limit with more rows left
-		// server-side — 'L' (see loadAllRows) fetches the rest.
-		title += fmt.Sprintf(" [%d+]", len(s.lastRows))
-	}
-	if s.augmentTotal > 0 && s.augmentCompleted < s.augmentTotal {
-		title += fmt.Sprintf(" [%d/%d]", s.augmentCompleted, s.augmentTotal)
-	}
-	if s.table.ExpandColumns() {
-		title += " [no truncation]"
-	}
-	s.setTitle(title)
-	s.updateBorderColor()
 
 	rows := FilterRows(s.lastRows, s.filterQuery)
 	s.renderTabsBar(rows)
@@ -386,9 +388,22 @@ func (s *Shell) refreshTable() {
 	}
 
 	// rows is now exactly what's about to be shown (pre-sort — sorting
-	// doesn't change WHICH rows are visible, only their order), so this is
-	// the one place that both drives augmentation and publishes the live
-	// visible-set snapshot Augment's wanted callback reads.
+	// doesn't change WHICH rows are visible, only their order), so it's the
+	// right basis for the visible/total header count, and (below) for driving
+	// augmentation and publishing the visible-set snapshot Augment reads.
+	// The truncation "+" is folded into this single count rather than shown
+	// as a separate marker — see formatRowCount.
+	title += " · " + formatRowCount(len(rows), len(s.lastRows), s.currentListTruncated)
+
+	if s.augmentTotal > 0 && s.augmentCompleted < s.augmentTotal {
+		title += fmt.Sprintf(" [%d/%d]", s.augmentCompleted, s.augmentTotal)
+	}
+	if s.table.ExpandColumns() {
+		title += " [no truncation]"
+	}
+	s.setTitle(title)
+	s.updateBorderColor()
+
 	s.triggerAugmentForNewlyVisibleRows(rows)
 
 	rows = SortRows(rows, s.currentSort)
@@ -451,6 +466,14 @@ func (s *Shell) renderList(res resource.Resource, scope string, isRestore bool) 
 	s.currentDetailActions = nil
 	if sa, ok := res.(resource.ScopeActions); ok {
 		s.currentDetailActions = sa.ScopeActions(scope)
+	}
+	// A list view can also carry mutating actions (resource.Actionable) — e.g.
+	// "create task" on the tasks list. They don't act on any single row, so
+	// they're resolved with an empty id purely to render their key hints;
+	// dispatch still re-resolves against the highlighted row at press time.
+	s.currentActions = nil
+	if act, ok := res.(resource.Actionable); ok {
+		s.currentActions = act.Actions("")
 	}
 	s.closeFooterInput()
 	s.filterQuery = s.filterByResource[res.Name()] // "" if never set
@@ -985,6 +1008,7 @@ func shouldRedrawAugmentTick(completed, total int, lastRedraw, now time.Time) bo
 
 func (s *Shell) renderDetail(res resource.Resource, id string, isRestore bool) {
 	s.currentDetailActions = nil
+	s.currentActions = nil
 	s.closeFooterInput()
 
 	s.renderHeaderHints()
@@ -1043,6 +1067,11 @@ func (s *Shell) loadDetail(res resource.Resource, id string, isInitial, isRestor
 				s.detail.UpdateData(detail)
 			}
 			s.currentDetailActions = detail.Actions
+			if act, ok := res.(resource.Actionable); ok {
+				s.currentActions = act.Actions(id)
+			} else {
+				s.currentActions = nil
+			}
 			s.activeContent = s.detail
 			s.currentDetailTitle = detail.Title
 			s.refreshDetailTitle()

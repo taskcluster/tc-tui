@@ -21,7 +21,7 @@ func TestPendingTasksResourceScopedList(t *testing.T) {
 			},
 		},
 	}
-	res := NewPendingTasksResource(fake)
+	res := NewPendingTasksResource(fake, nil)
 
 	rows, err := res.ScopedList("gcp/pool-a")
 	if err != nil {
@@ -42,7 +42,7 @@ func TestPendingTasksResourceScopedList(t *testing.T) {
 func TestPendingTasksResourceScopedListError(t *testing.T) {
 	wantErr := errors.New("boom")
 	fake := &fakeTaskcluster{pendingTasksErr: wantErr}
-	res := NewPendingTasksResource(fake)
+	res := NewPendingTasksResource(fake, nil)
 
 	_, err := res.ScopedList("gcp/pool-a")
 	if !errors.Is(err, wantErr) {
@@ -51,7 +51,7 @@ func TestPendingTasksResourceScopedListError(t *testing.T) {
 }
 
 func TestPendingTasksResourceListReturnsError(t *testing.T) {
-	res := NewPendingTasksResource(&fakeTaskcluster{})
+	res := NewPendingTasksResource(&fakeTaskcluster{}, nil)
 
 	if _, err := res.List(); err == nil {
 		t.Fatalf("expected an error, got nil")
@@ -59,7 +59,7 @@ func TestPendingTasksResourceListReturnsError(t *testing.T) {
 }
 
 func TestPendingTasksResourceEmptyScopeResource(t *testing.T) {
-	res := NewPendingTasksResource(&fakeTaskcluster{})
+	res := NewPendingTasksResource(&fakeTaskcluster{}, nil)
 
 	if got := res.EmptyScopeResource(); got != "workerpools" {
 		t.Fatalf("expected %q, got %q", "workerpools", got)
@@ -71,7 +71,7 @@ func TestPendingTasksResourceDescribeDelegatesToDescribeTask(t *testing.T) {
 		task:       &tcqueue.TaskDefinitionResponse{Metadata: tcqueue.TaskMetadata{Name: "build"}},
 		taskStatus: &tcqueue.TaskStatusStructure{State: "pending"},
 	}
-	res := NewPendingTasksResource(fake)
+	res := NewPendingTasksResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -94,7 +94,7 @@ func TestClaimedTasksResourceScopedList(t *testing.T) {
 			},
 		},
 	}
-	res := NewClaimedTasksResource(fake)
+	res := NewClaimedTasksResource(fake, nil)
 
 	rows, err := res.ScopedList("gcp/pool-a")
 	if err != nil {
@@ -115,7 +115,7 @@ func TestClaimedTasksResourceScopedList(t *testing.T) {
 func TestClaimedTasksResourceScopedListError(t *testing.T) {
 	wantErr := errors.New("boom")
 	fake := &fakeTaskcluster{claimedTasksErr: wantErr}
-	res := NewClaimedTasksResource(fake)
+	res := NewClaimedTasksResource(fake, nil)
 
 	_, err := res.ScopedList("gcp/pool-a")
 	if !errors.Is(err, wantErr) {
@@ -124,7 +124,7 @@ func TestClaimedTasksResourceScopedListError(t *testing.T) {
 }
 
 func TestClaimedTasksResourceListReturnsError(t *testing.T) {
-	res := NewClaimedTasksResource(&fakeTaskcluster{})
+	res := NewClaimedTasksResource(&fakeTaskcluster{}, nil)
 
 	if _, err := res.List(); err == nil {
 		t.Fatalf("expected an error, got nil")
@@ -132,7 +132,7 @@ func TestClaimedTasksResourceListReturnsError(t *testing.T) {
 }
 
 func TestClaimedTasksResourceEmptyScopeResource(t *testing.T) {
-	res := NewClaimedTasksResource(&fakeTaskcluster{})
+	res := NewClaimedTasksResource(&fakeTaskcluster{}, nil)
 
 	if got := res.EmptyScopeResource(); got != "workerpools" {
 		t.Fatalf("expected %q, got %q", "workerpools", got)
@@ -144,7 +144,7 @@ func TestClaimedTasksResourceDescribeDelegatesToDescribeTask(t *testing.T) {
 		task:       &tcqueue.TaskDefinitionResponse{Metadata: tcqueue.TaskMetadata{Name: "build"}},
 		taskStatus: &tcqueue.TaskStatusStructure{State: "running"},
 	}
-	res := NewClaimedTasksResource(fake)
+	res := NewClaimedTasksResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -156,7 +156,7 @@ func TestClaimedTasksResourceDescribeDelegatesToDescribeTask(t *testing.T) {
 }
 
 func TestPendingTasksResourceScopeActionsExcludesPending(t *testing.T) {
-	res := NewPendingTasksResource(&fakeTaskcluster{})
+	res := NewPendingTasksResource(&fakeTaskcluster{}, nil)
 
 	actions := res.ScopeActions("gcp/pool-a")
 	if len(actions) != 6 {
@@ -173,7 +173,7 @@ func TestPendingTasksResourceScopeActionsExcludesPending(t *testing.T) {
 }
 
 func TestClaimedTasksResourceScopeActionsExcludesClaimed(t *testing.T) {
-	res := NewClaimedTasksResource(&fakeTaskcluster{})
+	res := NewClaimedTasksResource(&fakeTaskcluster{}, nil)
 
 	actions := res.ScopeActions("gcp/pool-a")
 	if len(actions) != 6 {

@@ -35,8 +35,8 @@ func buildHelpText(registry *resource.Registry) string {
 	var b strings.Builder
 
 	b.WriteString("[green]Global keys[white]\n\n")
-	b.WriteString("  [yellow]q[white]     quit from any view\n")
-	b.WriteString("  [yellow]:[white]     open the command bar (switch resource, e.g. `:workerpools`, `:wp`, `:workers <poolId>`, `:help`)\n")
+	b.WriteString("  [yellow]q[white]     quit from any view (also `:quit` / `:q` from the command bar)\n")
+	b.WriteString("  [yellow]:[white]     open the command bar (switch resource, e.g. `:workerpools`, `:wp`, `:workers <poolId>`, `:help`, `:quit`)\n")
 	b.WriteString("  [yellow]/[white]     filter the current list's rows, or a detail body's lines " +
 		"(including a live-streaming log) — narrows to lines/rows containing the query\n")
 	b.WriteString("  [yellow]1-9[white]   sort the current list by that column, numbered left to right " +
@@ -50,8 +50,8 @@ func buildHelpText(registry *resource.Registry) string {
 	b.WriteString("  [yellow]n[white]     on a detail view, toggle a vim-like line-number gutter — a filtered line keeps " +
 		"its original number, so you can still tell where it sat among the lines the query hid\n")
 	b.WriteString("  [yellow]L[white]     load ALL rows of a truncated list — very large lists (big task groups, " +
-		"stopped workers, deep task queues) fetch only their first ~1000 rows up front, shown as [yellow][N+][white] " +
-		"in the title\n")
+		"stopped workers, deep task queues) fetch only their first ~1000 rows up front, shown as a [yellow]N+[white] " +
+		"row count in the title\n")
 	b.WriteString("  [yellow]o[white]     open the current view in Taskcluster's web UI, if that resource has one\n")
 	b.WriteString("  [yellow]s[white]     save the current view's content to a local file, if that resource supports it (e.g. an artifact)\n")
 	b.WriteString("  [yellow]Esc[white]   go back\n")

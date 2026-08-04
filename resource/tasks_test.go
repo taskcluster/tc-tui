@@ -39,7 +39,7 @@ func TestTaskResourceDescribe(t *testing.T) {
 			},
 		},
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -93,7 +93,7 @@ func TestTaskResourceDescribeGroupsOwnerAndSourceOnOneLine(t *testing.T) {
 		},
 		taskStatus: &tcqueue.TaskStatusStructure{State: "completed"},
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -121,7 +121,7 @@ func TestTaskResourceDescribeAlwaysShowsDependentsAction(t *testing.T) {
 		task:       &tcqueue.TaskDefinitionResponse{Metadata: tcqueue.TaskMetadata{Name: "leaf"}},
 		taskStatus: &tcqueue.TaskStatusStructure{State: "completed"},
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -149,7 +149,7 @@ func TestTaskResourceDescribeOmitsRunsActionWhenNoRuns(t *testing.T) {
 		task:       &tcqueue.TaskDefinitionResponse{Metadata: tcqueue.TaskMetadata{Name: "leaf"}},
 		taskStatus: &tcqueue.TaskStatusStructure{State: "unscheduled"},
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -171,7 +171,7 @@ func TestTaskResourceDescribeIncludesPayload(t *testing.T) {
 		},
 		taskStatus: &tcqueue.TaskStatusStructure{State: "completed"},
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -188,7 +188,7 @@ func TestTaskResourceDescribeIncludesPayload(t *testing.T) {
 func TestTaskResourceDescribeTaskError(t *testing.T) {
 	wantErr := errors.New("boom")
 	fake := &fakeTaskcluster{taskErr: wantErr}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	_, err := res.Describe("task-1")
 	if !errors.Is(err, wantErr) {
@@ -202,7 +202,7 @@ func TestTaskResourceDescribeStatusError(t *testing.T) {
 		task:          &tcqueue.TaskDefinitionResponse{},
 		taskStatusErr: wantErr,
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	_, err := res.Describe("task-1")
 	if !errors.Is(err, wantErr) {
@@ -211,7 +211,7 @@ func TestTaskResourceDescribeStatusError(t *testing.T) {
 }
 
 func TestTaskResourceListReturnsError(t *testing.T) {
-	res := NewTaskResource(&fakeTaskcluster{})
+	res := NewTaskResource(&fakeTaskcluster{}, nil)
 
 	if _, err := res.List(); err == nil {
 		t.Fatalf("expected an error, got nil")
@@ -219,7 +219,7 @@ func TestTaskResourceListReturnsError(t *testing.T) {
 }
 
 func TestTaskResourceIDPromptLabel(t *testing.T) {
-	res := NewTaskResource(&fakeTaskcluster{})
+	res := NewTaskResource(&fakeTaskcluster{}, nil)
 
 	if got := res.IDPromptLabel(); got != "task id" {
 		t.Fatalf("expected %q, got %q", "task id", got)
@@ -240,7 +240,7 @@ func TestTasksResourceScopedList(t *testing.T) {
 			},
 		},
 	}
-	res := NewTasksResource(fake)
+	res := NewTasksResource(fake, &taskDefHistory{}, nil)
 
 	rows, err := res.ScopedList("grp-1")
 	if err != nil {
@@ -264,7 +264,7 @@ func TestTasksResourceScopedList(t *testing.T) {
 func TestTasksResourceScopedListError(t *testing.T) {
 	wantErr := errors.New("boom")
 	fake := &fakeTaskcluster{taskGroupTasksErr: wantErr}
-	res := NewTasksResource(fake)
+	res := NewTasksResource(fake, &taskDefHistory{}, nil)
 
 	_, err := res.ScopedList("grp-1")
 	if !errors.Is(err, wantErr) {
@@ -273,7 +273,7 @@ func TestTasksResourceScopedListError(t *testing.T) {
 }
 
 func TestTasksResourceListReturnsError(t *testing.T) {
-	res := NewTasksResource(&fakeTaskcluster{})
+	res := NewTasksResource(&fakeTaskcluster{}, &taskDefHistory{}, nil)
 
 	if _, err := res.List(); err == nil {
 		t.Fatalf("expected an error, got nil")
@@ -281,7 +281,7 @@ func TestTasksResourceListReturnsError(t *testing.T) {
 }
 
 func TestTasksResourceEmptyScopeResource(t *testing.T) {
-	res := NewTasksResource(&fakeTaskcluster{})
+	res := NewTasksResource(&fakeTaskcluster{}, &taskDefHistory{}, nil)
 
 	if got := res.EmptyScopeResource(); got != "workerpools" {
 		t.Fatalf("expected %q, got %q", "workerpools", got)
@@ -301,7 +301,7 @@ func TestDescribeTaskRunsIncludeTimestamps(t *testing.T) {
 			},
 		},
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -326,7 +326,7 @@ func TestDescribeTaskRunsIncludeElapsedTimeBetweenEvents(t *testing.T) {
 			},
 		},
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -351,7 +351,7 @@ func TestDescribeTaskRunOmitsElapsedTimeWhenPriorEventIsUnset(t *testing.T) {
 			},
 		},
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -375,7 +375,7 @@ func TestDescribeTaskRunListsArtifactsForStartedRuns(t *testing.T) {
 			{Name: "public/build.tar.gz", ContentType: "application/gzip", ContentLength: 5 * 1024 * 1024},
 		},
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -399,7 +399,7 @@ func TestDescribeTaskRunSkipsArtifactFetchForUnstartedRuns(t *testing.T) {
 		},
 		artifactsErr: errors.New("should not be called"),
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -420,7 +420,7 @@ func TestDescribeTaskRunShowsArtifactLoadFailureInline(t *testing.T) {
 		},
 		artifactsErr: errors.New("boom"),
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -439,7 +439,7 @@ func TestDescribeTaskRunOmitsUnsetTimestamps(t *testing.T) {
 			Runs:  []tcqueue.RunInformation{{RunID: 0, State: "pending"}},
 		},
 	}
-	res := NewTaskResource(fake)
+	res := NewTaskResource(fake, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {
@@ -459,7 +459,7 @@ func TestTasksResourceDescribeDelegatesToDescribeTask(t *testing.T) {
 		task:       &tcqueue.TaskDefinitionResponse{Metadata: tcqueue.TaskMetadata{Name: "build"}},
 		taskStatus: &tcqueue.TaskStatusStructure{State: "completed"},
 	}
-	res := NewTasksResource(fake)
+	res := NewTasksResource(fake, &taskDefHistory{}, nil)
 
 	detail, err := res.Describe("task-1")
 	if err != nil {

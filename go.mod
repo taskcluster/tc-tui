@@ -6,8 +6,10 @@ require (
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/gdamore/tcell/v2 v2.13.10
 	github.com/rivo/tview v0.42.0
+	github.com/taskcluster/slugid-go v1.1.0
 	github.com/taskcluster/taskcluster-lib-urls v13.0.1+incompatible
 	github.com/taskcluster/taskcluster/v101 v101.1.0
+	gopkg.in/yaml.v3 v3.0.1
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -40,7 +42,6 @@ require (
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/taskcluster/httpbackoff/v3 v3.1.0 // indirect
-	github.com/taskcluster/slugid-go v1.1.0 // indirect
 	github.com/tent/hawk-go v0.0.0-20161026210932-d341ea318957 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/yuin/goldmark v1.7.17 // indirect

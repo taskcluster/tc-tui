@@ -84,3 +84,23 @@ func TestCacheKeyForBuildsFromResourceNameScopeAndFacet(t *testing.T) {
 		t.Fatalf("expected %+v, got %+v", want, got)
 	}
 }
+
+func TestListCacheInvalidateDropsAllEntriesForResource(t *testing.T) {
+	c := newListCache()
+	now := time.Now()
+	c.set(cacheKey{resource: "secrets"}, cacheEntry{fetchedAt: now})
+	c.set(cacheKey{resource: "secrets", scope: "proj"}, cacheEntry{fetchedAt: now})
+	c.set(cacheKey{resource: "workers", scope: "pool-a"}, cacheEntry{fetchedAt: now})
+
+	c.invalidate("secrets")
+
+	if _, ok := c.get(cacheKey{resource: "secrets"}, time.Minute); ok {
+		t.Fatalf("expected the unscoped secrets entry to be dropped")
+	}
+	if _, ok := c.get(cacheKey{resource: "secrets", scope: "proj"}, time.Minute); ok {
+		t.Fatalf("expected the scoped secrets entry to be dropped")
+	}
+	if _, ok := c.get(cacheKey{resource: "workers", scope: "pool-a"}, time.Minute); !ok {
+		t.Fatalf("expected an unrelated resource's entry to survive invalidation")
+	}
+}
