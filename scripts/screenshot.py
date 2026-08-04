@@ -12,7 +12,7 @@ import sys
 import time
 from PIL import Image, ImageDraw, ImageFont
 
-COLS, ROWS = 130, 40
+COLS, ROWS = 160, 40
 CELL_W, CELL_H = 9, 18
 FONT_PATH_CANDIDATES = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
@@ -88,23 +88,45 @@ def main():
         print("TASKCLUSTER_ROOT_URL must be set", file=sys.stderr)
         sys.exit(1)
 
-    binary = os.path.abspath("./tc-tui")
+    binary = os.environ.get("TC_TUI_BINARY") or os.path.abspath("./tc-tui")
+    binary = os.path.abspath(binary)
     out_dir = os.path.abspath("docs/screenshots")
     os.makedirs(out_dir, exist_ok=True)
+
+    import fcntl
+    import signal
+    import struct
+    import tempfile
+    import termios
+
+    winsize = struct.pack("HHHH", ROWS, COLS, 0, 0)
+
+    # tc-tui persists its navigation stack per root URL under the OS user cache
+    # dir (see state.Path -> os.UserCacheDir) and restores it on the next
+    # launch. For screenshots we want a deterministic start (worker pools, the
+    # root resource) and must not clobber the human's real saved session — so
+    # point the child at a throwaway HOME/cache. os.UserCacheDir derives from
+    # HOME on both Linux ($HOME/.cache, or $XDG_CACHE_HOME) and macOS
+    # ($HOME/Library/Caches), so overriding both covers every platform.
+    fake_home = tempfile.mkdtemp(prefix="tc-tui-shots-")
 
     pid, master_fd = pty.fork()
     if pid == 0:
         os.environ["TERM"] = "xterm-256color"
         os.environ["COLUMNS"] = str(COLS)
         os.environ["LINES"] = str(ROWS)
+        os.environ["HOME"] = fake_home
+        os.environ["XDG_CACHE_HOME"] = os.path.join(fake_home, ".cache")
+        # Size the pty *before* exec so the app's very first paint already
+        # happens at COLSxROWS. Resizing only from the parent (below) races the
+        # app's startup render — it can paint once at the default 80x24 and
+        # leave stale cells that never get cleared, which pyte then captures as
+        # garbled overlapping text in the (now denser) header.
+        fcntl.ioctl(0, termios.TIOCSWINSZ, winsize)
         os.execv(binary, [binary])
         os._exit(1)
 
-    import fcntl
-    import struct
-    import termios
-
-    fcntl.ioctl(master_fd, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
+    fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
 
     stream = pyte.Stream()
     screen = pyte.Screen(COLS, ROWS)
@@ -128,11 +150,18 @@ def main():
 
     def snap(name, settle=1.0):
         pump(settle)
+        # Force tcell to do a full clear+resync so no stale cells from an
+        # earlier (differently sized or wider) frame survive into the capture.
+        os.kill(pid, signal.SIGWINCH)
+        pump(0.4)
         render(screen, os.path.join(out_dir, name))
 
-    # 1. initial screen: worker pools list (default root resource)
+    # 1. worker pools list (the root resource). Navigate to it explicitly
+    # rather than trusting the default landing view — even with an isolated
+    # cache the command bar is the deterministic way to pin the first frame.
     pump(3.0)
-    snap("worker-pools.png", settle=0.5)
+    send(":workerpools\r")
+    snap("worker-pools.png", settle=2.5)
 
     # 2. select first row -> worker pool detail
     send("\r")
@@ -157,8 +186,36 @@ def main():
     # 4. jump to a plain global list via the command bar
     send(":roles\r")
     snap("roles.png", settle=1.5)
+    send("\x1b")
+    pump(0.3)
 
-    # 5. help screen
+    # 5. a single task's detail — colored state, runs, and the action hints
+    # (rerun/retrigger/cancel/priority). Resolved live from the community-tc
+    # task index (project.fuzzing.orion.ci-node-22.amd64.master).
+    send(":task dMmVDAO4TamzRLH1OJey3w\r")
+    snap("task-detail.png", settle=2.5)
+    send("\x1b")
+    pump(0.3)
+
+    # 6. that task's task group — a big list with state-colored rows
+    send(":taskgroup J_PKu6BjS0mD6xCu7uR7qQ\r")
+    snap("task-group.png", settle=3.0)
+    send("\x1b")
+    pump(0.3)
+
+    # 7. that task's artifacts (across all runs)
+    send(":artifacts dMmVDAO4TamzRLH1OJey3w\r")
+    snap("artifacts.png", settle=2.5)
+    send("\x1b")
+    pump(0.3)
+
+    # 8. a Github pull request's Taskcluster builds
+    send(":githubbuilds taskcluster/taskcluster/pull/8693\r")
+    snap("github-builds.png", settle=3.0)
+    send("\x1b")
+    pump(0.3)
+
+    # 9. help screen
     send("?")
     snap("help.png", settle=0.5)
     send("\x1b")
