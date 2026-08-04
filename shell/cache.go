@@ -96,6 +96,8 @@ func (c *listCache) invalidate(resourceName string) {
 			delete(c.entries, key)
 		}
 	}
+}
+
 // detailCacheKey identifies one (resource, id) Describe result.
 type detailCacheKey struct {
 	resource string
