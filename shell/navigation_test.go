@@ -262,14 +262,32 @@ func TestRefreshTableShowsActiveFilterInTitle(t *testing.T) {
 
 	s.filterQuery = "aws"
 	s.refreshTable()
-	if got, want := s.content.GetTitle(), "[ Taskcluster :: workerpools (aws) ]"; got != want {
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: workerpools (aws) · 1 ]"; got != want {
 		t.Fatalf("title with active filter = %q, want %q", got, want)
 	}
 
 	s.filterQuery = ""
 	s.refreshTable()
-	if got, want := s.content.GetTitle(), "[ Taskcluster :: workerpools ]"; got != want {
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: workerpools · 1 ]"; got != want {
 		t.Fatalf("title with cleared filter = %q, want %q", got, want)
+	}
+}
+
+func TestRefreshTableShowsFilteredCountInTitle(t *testing.T) {
+	s := New(resource.NewRegistry())
+	s.currentListResource = "widgets"
+	s.currentColumns = []resource.Column{{Title: "NAME"}}
+	s.lastRows = []resource.Row{
+		{ID: "1", Cells: []string{"one"}},
+		{ID: "2", Cells: []string{"two"}},
+		{ID: "3", Cells: []string{"three"}},
+	}
+
+	s.filterQuery = "o" // matches one and two, hides three
+	s.refreshTable()
+
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets (o) · 2 of 3 ]"; got != want {
+		t.Fatalf("filtered-count title = %q, want %q", got, want)
 	}
 }
 
@@ -282,7 +300,7 @@ func TestRefreshTableShowsScopeInTitle(t *testing.T) {
 
 	s.refreshTable()
 
-	if got, want := s.content.GetTitle(), "[ Taskcluster :: runs (task-1) ]"; got != want {
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: runs (task-1) · 1 ]"; got != want {
 		t.Fatalf("title with scope = %q, want %q", got, want)
 	}
 }
@@ -297,7 +315,7 @@ func TestRefreshTableShowsScopeSubtitleInTitle(t *testing.T) {
 
 	s.refreshTable()
 
-	if got, want := s.content.GetTitle(), "[ Taskcluster :: taskgroup (grp-1) [not sealed] ]"; got != want {
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: taskgroup (grp-1) [not sealed] · 1 ]"; got != want {
 		t.Fatalf("title with scope subtitle = %q, want %q", got, want)
 	}
 }
@@ -308,7 +326,7 @@ func TestRefreshTableShowsAugmentProgressInTitle(t *testing.T) {
 
 	s.refreshTable()
 
-	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets [2/5] ]"; got != want {
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets · 2 [2/5] ]"; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
@@ -319,7 +337,7 @@ func TestRefreshTableHidesAugmentSuffixOnceComplete(t *testing.T) {
 
 	s.refreshTable()
 
-	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets ]"; got != want {
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets · 2 ]"; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
@@ -1294,7 +1312,7 @@ func TestToggleExpandColumnsFlipsTableStateAndShowsInTitle(t *testing.T) {
 	if s.table.ExpandColumns() {
 		t.Fatalf("expected columns not expanded by default")
 	}
-	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets ]"; got != want {
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets · 2 ]"; got != want {
 		t.Fatalf("title before toggling = %q, want %q", got, want)
 	}
 
@@ -1303,7 +1321,7 @@ func TestToggleExpandColumnsFlipsTableStateAndShowsInTitle(t *testing.T) {
 	if !s.table.ExpandColumns() {
 		t.Fatalf("expected first toggle to expand columns")
 	}
-	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets [no truncation] ]"; got != want {
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets · 2 [no truncation] ]"; got != want {
 		t.Fatalf("title after toggling = %q, want %q", got, want)
 	}
 
@@ -1312,7 +1330,7 @@ func TestToggleExpandColumnsFlipsTableStateAndShowsInTitle(t *testing.T) {
 	if s.table.ExpandColumns() {
 		t.Fatalf("expected second toggle to restore truncation")
 	}
-	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets ]"; got != want {
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets · 2 ]"; got != want {
 		t.Fatalf("title after second toggle = %q, want %q", got, want)
 	}
 }

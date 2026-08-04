@@ -38,7 +38,7 @@ func cacheKeyFor(res resource.Resource, scope, facetValue string) cacheKey {
 // treating still-unfinished (or never-even-requested) ones as settled.
 // truncated records whether rows was capped at the safe fetch limit with
 // more left unfetched server-side (see resource.PartialLister) — restored on
-// a cache hit so the "[N+]" indicator survives navigating away and back, and
+// a cache hit so the "N+" count indicator survives navigating away and back, and
 // checked by loadList so a capped snapshot can't satisfy a load once the
 // user has asked for everything.
 type cacheEntry struct {

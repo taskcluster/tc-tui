@@ -177,8 +177,8 @@ type ServerFaceted interface {
 // fetches rows via ListPartial INSTEAD of List/ScopedList/FacetList — first
 // with loadAll=false, letting the resource cap the fetch at a safe limit
 // (taskcluster.DefaultListLimit) and report via more whether rows were left
-// unfetched server-side. The shell surfaces truncation as a "[N+]" title
-// suffix and offers the 'L' key to re-issue the fetch with loadAll=true.
+// unfetched server-side. The shell surfaces truncation as a "N+" row-count
+// title suffix and offers the 'L' key to re-issue the fetch with loadAll=true.
 // facetValue carries the active facet tab for a ServerFaceted resource
 // (whose FacetCounts is still used for the tab bar); "" otherwise.
 type PartialLister interface {

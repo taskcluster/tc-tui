@@ -73,13 +73,13 @@ func TestRefreshTableShowsTruncatedRowCountInTitle(t *testing.T) {
 
 	s.refreshTable()
 
-	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets [2+] ]"; got != want {
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets · 2+ ]"; got != want {
 		t.Fatalf("title with truncated rows = %q, want %q", got, want)
 	}
 
 	s.currentListTruncated = false
 	s.refreshTable()
-	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets ]"; got != want {
+	if got, want := s.content.GetTitle(), "[ Taskcluster :: widgets · 2 ]"; got != want {
 		t.Fatalf("title once complete = %q, want %q", got, want)
 	}
 }
@@ -123,7 +123,7 @@ func TestLoadListPrefersListPartialAndMarksTruncated(t *testing.T) {
 	if calls[0].loadAll {
 		t.Fatalf("expected the initial fetch to be capped (loadAll=false), got %+v", calls[0])
 	}
-	if title != "[ Taskcluster :: widgets [2+] ]" {
+	if title != "[ Taskcluster :: widgets · 2+ ]" {
 		t.Fatalf("unexpected title: %q", title)
 	}
 }
@@ -158,7 +158,7 @@ func TestLoadAllKeyRefetchesUncapped(t *testing.T) {
 		onEventLoop(s, func() { truncated = s.currentListTruncated; title = s.content.GetTitle() })
 		return !truncated
 	})
-	if strings.Contains(title, "+]") {
+	if strings.Contains(title, "+") {
 		t.Fatalf("expected the truncation suffix to disappear after loading all, got %q", title)
 	}
 }

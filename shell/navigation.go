@@ -376,19 +376,6 @@ func (s *Shell) refreshTable() {
 	if s.filterQuery != "" {
 		title += " (" + s.filterQuery + ")"
 	}
-	if s.currentListTruncated {
-		// The fetch stopped at the safe limit with more rows left
-		// server-side — 'L' (see loadAllRows) fetches the rest.
-		title += fmt.Sprintf(" [%d+]", len(s.lastRows))
-	}
-	if s.augmentTotal > 0 && s.augmentCompleted < s.augmentTotal {
-		title += fmt.Sprintf(" [%d/%d]", s.augmentCompleted, s.augmentTotal)
-	}
-	if s.table.ExpandColumns() {
-		title += " [no truncation]"
-	}
-	s.setTitle(title)
-	s.updateBorderColor()
 
 	rows := FilterRows(s.lastRows, s.filterQuery)
 	s.renderTabsBar(rows)
@@ -401,9 +388,22 @@ func (s *Shell) refreshTable() {
 	}
 
 	// rows is now exactly what's about to be shown (pre-sort — sorting
-	// doesn't change WHICH rows are visible, only their order), so this is
-	// the one place that both drives augmentation and publishes the live
-	// visible-set snapshot Augment's wanted callback reads.
+	// doesn't change WHICH rows are visible, only their order), so it's the
+	// right basis for the visible/total header count, and (below) for driving
+	// augmentation and publishing the visible-set snapshot Augment reads.
+	// The truncation "+" is folded into this single count rather than shown
+	// as a separate marker — see formatRowCount.
+	title += " · " + formatRowCount(len(rows), len(s.lastRows), s.currentListTruncated)
+
+	if s.augmentTotal > 0 && s.augmentCompleted < s.augmentTotal {
+		title += fmt.Sprintf(" [%d/%d]", s.augmentCompleted, s.augmentTotal)
+	}
+	if s.table.ExpandColumns() {
+		title += " [no truncation]"
+	}
+	s.setTitle(title)
+	s.updateBorderColor()
+
 	s.triggerAugmentForNewlyVisibleRows(rows)
 
 	rows = SortRows(rows, s.currentSort)

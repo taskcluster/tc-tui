@@ -127,7 +127,7 @@ type Shell struct {
 
 	// currentListTruncated reports whether the current list view's rows were
 	// capped at the safe fetch limit with more left unfetched server-side
-	// (see resource.PartialLister) — drives refreshTable's "[N+]" title
+	// (see resource.PartialLister) — drives refreshTable's "N+" row-count title
 	// suffix and the 'L' load-all key and hint.
 	currentListTruncated bool
 
