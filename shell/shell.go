@@ -274,6 +274,12 @@ type Shell struct {
 }
 
 func New(registry *resource.Registry) *Shell {
+	// Let the terminal supply the background instead of painting tview's
+	// default ColorBlack over every primitive. Besides respecting the user's
+	// terminal theme, ColorDefault allows terminal emulators such as Ghostty
+	// to preserve their configured background transparency.
+	tview.Styles.PrimitiveBackgroundColor = tcell.ColorDefault
+
 	s := &Shell{
 		app:              tview.NewApplication(),
 		registry:         registry,

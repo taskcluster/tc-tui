@@ -4,9 +4,39 @@ import (
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 
 	"github.com/taskcluster/tc-tui/resource"
 )
+
+func TestNewUsesTerminalDefaultBackground(t *testing.T) {
+	previous := tview.Styles.PrimitiveBackgroundColor
+	t.Cleanup(func() { tview.Styles.PrimitiveBackgroundColor = previous })
+
+	// Start from tview's opaque default so this test verifies New applies the
+	// transparent/default-terminal theme itself.
+	tview.Styles.PrimitiveBackgroundColor = tcell.ColorBlack
+	s := New(resource.NewRegistry())
+
+	if got := tview.Styles.PrimitiveBackgroundColor; got != tcell.ColorDefault {
+		t.Fatalf("expected primitive background to use terminal default, got %v", got)
+	}
+
+	screen := tcell.NewSimulationScreen("")
+	if err := screen.Init(); err != nil {
+		t.Fatalf("failed to init simulation screen: %v", err)
+	}
+	t.Cleanup(screen.Fini)
+	screen.SetSize(40, 10)
+	s.root.SetRect(0, 0, 40, 10)
+	s.root.Draw(screen)
+
+	_, _, style, _ := screen.GetContent(20, 5)
+	_, background, _ := style.Decompose()
+	if background != tcell.ColorDefault {
+		t.Fatalf("expected an unstyled root cell to preserve the terminal background, got %v", background)
+	}
+}
 
 func TestGlobalInputCaptureQuitKeyIsHandledInNavigableViews(t *testing.T) {
 	tests := []struct {
