@@ -2,10 +2,12 @@
 
 All notable changes to `tc-tui` will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project intends to
-follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) beginning with the first tagged release.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-08-05
 
 This is the initial public release of `tc-tui`. It includes the original prototype work and the 2026 rewrite
 into a general-purpose Taskcluster terminal client.
