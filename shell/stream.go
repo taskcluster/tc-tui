@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/taskcluster/tc-tui/crash"
 	"github.com/taskcluster/tc-tui/resource"
 )
 
@@ -70,7 +71,7 @@ func (s *Shell) runDetailStream(ls resource.LiveStreamer, id string, gen int, is
 	}
 
 	flusherDone := make(chan struct{})
-	go func() {
+	crash.Go(func() {
 		ticker := time.NewTicker(streamFlushInterval)
 		defer ticker.Stop()
 		for {
@@ -81,7 +82,7 @@ func (s *Shell) runDetailStream(ls resource.LiveStreamer, id string, gen int, is
 				return
 			}
 		}
-	}()
+	})
 
 	onStart := func(detail resource.Detail) {
 		s.app.QueueUpdateDraw(func() {

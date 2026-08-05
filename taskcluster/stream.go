@@ -4,6 +4,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/taskcluster/tc-tui/crash"
 )
 
 // streamReadBufferBytes sizes streamHttpResponse's per-read buffer — small
@@ -33,13 +35,13 @@ func streamHttpResponse(url string, maxBytes int64, stop <-chan struct{}, onChun
 
 	watcherDone := make(chan struct{})
 	defer close(watcherDone)
-	go func() {
+	crash.Go(func() {
 		select {
 		case <-stop:
 			response.Body.Close()
 		case <-watcherDone:
 		}
-	}()
+	})
 
 	contentType = response.Header.Get("Content-Type")
 

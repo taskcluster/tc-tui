@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/rivo/tview"
 
+	"github.com/taskcluster/tc-tui/crash"
 	"github.com/taskcluster/tc-tui/taskcluster"
 )
 
@@ -75,11 +76,11 @@ func (r *TaskArtifactsResource) ScopedList(taskID string) ([]Row, error) {
 	for i, run := range status.Runs {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(i int, runID int64) {
+		crash.Go(func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			rowsByRun[i] = artifactRowsForRun(r.tc, taskID, runID)
-		}(i, run.RunID)
+			rowsByRun[i] = artifactRowsForRun(r.tc, taskID, run.RunID)
+		})
 	}
 	wg.Wait()
 

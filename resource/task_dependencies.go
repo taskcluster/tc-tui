@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/taskcluster/tc-tui/crash"
 	"github.com/taskcluster/tc-tui/taskcluster"
 )
 
@@ -57,11 +58,11 @@ func (r *TaskDependenciesResource) ScopedList(taskID string) ([]Row, error) {
 	for i, depID := range task.Dependencies {
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(i int, depID string) {
+		crash.Go(func() {
 			defer wg.Done()
 			defer func() { <-sem }()
 			rows[i] = dependencyRow(r.tc, depID)
-		}(i, depID)
+		})
 	}
 	wg.Wait()
 

@@ -34,6 +34,14 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	// A session ended by SIGTERM/SIGHUP unwinds through the same clean path as
+	// `q`, so without this a killed tc-tui would report success.
+	if reporter, ok := ctrl.(controller.ShutdownReporter); ok {
+		if code, signalled := reporter.ShutdownExitCode(); signalled {
+			os.Exit(code)
+		}
+	}
 }
 
 // parseArgs splits argv into the -h/--help and -v/--version flags plus up to

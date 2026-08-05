@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/taskcluster/tc-tui/crash"
 	"github.com/taskcluster/tc-tui/resource"
 )
 
@@ -781,7 +782,7 @@ func (s *Shell) loadList(res resource.Resource, scope, facetValue string, isInit
 		}
 	}
 
-	go func() {
+	crash.Go(func() {
 		var rows []resource.Row
 		var counts map[string]int
 		var err error
@@ -860,7 +861,7 @@ func (s *Shell) loadList(res resource.Resource, scope, facetValue string, isInit
 			// Augment for whatever's visible now — see
 			// triggerAugmentForNewlyVisibleRows.
 		})
-	}()
+	})
 }
 
 // markRowsAugmented records rows as already requested for the current
@@ -1035,7 +1036,7 @@ func (s *Shell) triggerAugmentForNewlyVisibleRows(visible []resource.Row) {
 		return false
 	}
 
-	go func() {
+	crash.Go(func() {
 		// lastRedraw throttles the expensive part of each tick (refreshTable
 		// — full filter/facet/sort recompute plus a whole-table SetData —
 		// and the cache write) to at most once per augmentRedrawInterval.
@@ -1113,7 +1114,7 @@ func (s *Shell) triggerAugmentForNewlyVisibleRows(visible []resource.Row) {
 				})
 			})
 		})
-	}()
+	})
 }
 
 // augmentRedrawInterval caps how often a single Augment call's ticks
@@ -1186,7 +1187,7 @@ func (s *Shell) renderDetail(res resource.Resource, id string, isRestore bool) {
 func (s *Shell) loadDetail(res resource.Resource, id string, isInitial, isRestore, primed bool) {
 	gen := s.nextLoadGeneration(isInitial)
 
-	go func() {
+	crash.Go(func() {
 		// A currently-live id streams instead of Describe-ing — checked
 		// here, off the UI thread, since IsLive may cost an API call.
 		if ls, ok := res.(resource.LiveStreamer); ok && ls.IsLive(id) {
@@ -1250,7 +1251,7 @@ func (s *Shell) loadDetail(res resource.Resource, id string, isInitial, isRestor
 				})
 			}
 		})
-	}()
+	})
 }
 
 func (s *Shell) showError(title string, err error, retry func()) {

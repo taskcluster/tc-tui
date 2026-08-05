@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/taskcluster/tc-tui/crash"
 	"github.com/taskcluster/tc-tui/resource"
 	"github.com/taskcluster/tc-tui/shell"
 	"github.com/taskcluster/tc-tui/state"
@@ -20,6 +21,17 @@ type TcController interface {
 	// name/alias (and optional scope/id), the way `:name scope` in the
 	// command bar would — used for the CLI's positional arguments.
 	StartUIAt(name, scope string) error
+}
+
+// ShutdownReporter reports the status to exit with when a signal ended the
+// session instead of the user quitting — see Shell.ShutdownExitCode. Only
+// meaningful once StartUI/StartUIAt has returned.
+//
+// Deliberately a separate optional interface rather than a third TcController
+// method: TcController is exported and this project is past 1.0, so a required
+// method would break anything implementing it outside this package.
+type ShutdownReporter interface {
+	ShutdownExitCode() (int, bool)
 }
 
 type Controller struct {
@@ -109,19 +121,23 @@ func (c *Controller) StartUIAt(name, scope string) error {
 	return c.run(func() error { return c.shell.StartAt(rootResource, name, scope) })
 }
 
+func (c *Controller) ShutdownExitCode() (int, bool) {
+	return c.shell.ShutdownExitCode()
+}
+
 // run wires up header info and persists navigation state around whichever
 // of Shell's blocking entry points (Start/StartAt) start renders the app.
 func (c *Controller) run(start func() error) error {
 	c.shell.SetInfo(c.tc.GetRoot(), "..", "..", false)
 
-	go func() {
+	crash.Go(func() {
 		c.shell.SetInfo(
 			c.tc.GetRoot(),
 			c.tc.GetVersion().Version,
 			c.tc.GetClientID(),
 			c.tc.IsAuthenticated(),
 		)
-	}()
+	})
 
 	err := start()
 

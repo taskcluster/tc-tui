@@ -7,6 +7,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/taskcluster/tc-tui/crash"
 	"github.com/taskcluster/tc-tui/resource"
 )
 
@@ -83,10 +84,27 @@ type Shell struct {
 	// currentAction is the action the open dialog is collecting input for.
 	currentAction resource.Action
 
-	// openInEditor is a seam over the package-level editInEditor so tests can
+	// openInEditor is a seam over editInEditor so tests can
 	// simulate an $EDITOR round trip (success, failure, or an unavailable
 	// screen) without shelling out or suspending a real terminal.
 	openInEditor func(seed string) (string, error)
+
+	// shutdownExit is the exit status a signal-driven teardown recorded (see
+	// beginShutdown), 0 until one happens. Written by the signal-watching
+	// goroutine and read by main once the event loop returns, hence atomic.
+	shutdownExit atomic.Int32
+
+	// screen serializes tcell's screen transitions against a teardown's Fini —
+	// see screenGate for why they can't overlap.
+	screen *screenGate
+
+	// stopScreen and runScreen are seams over app.Stop and app.Run — the only
+	// routes to tcell's Fini and Init respectively. They exist because both are
+	// unobservable in a test: Stop is a silent no-op when no screen was ever
+	// created, and Run would try to take over the terminal running the tests.
+	// Always s.app.Stop / s.app.Run in production.
+	stopScreen func()
+	runScreen  func() error
 
 	footer              *tview.Pages
 	footerBreadcrumb    *tview.TextView
@@ -351,7 +369,10 @@ func (s *Shell) init() {
 	s.helpView = NewHelpView()
 	s.actionView = NewActionView()
 	s.editorConfirm = NewEditorConfirmView()
-	s.openInEditor = func(seed string) (string, error) { return editInEditor(s.app, seed) }
+	s.openInEditor = s.editInEditor
+	s.screen = newScreenGate()
+	s.stopScreen = s.app.Stop
+	s.runScreen = s.app.Run
 
 	s.content = tview.NewPages().
 		AddPage(pageTable, s.tableContainer, true, true).
@@ -585,8 +606,9 @@ func (s *Shell) SetInfo(root, version, clientID string, authenticated bool) {
 // loop. It blocks until Stop() is called.
 func (s *Shell) Start(rootResource string) error {
 	s.restoreFallback = rootResource
+	s.installTerminalGuards()
 	s.renderRestoredTop()
-	return s.app.Run()
+	return s.runUI()
 }
 
 // StartAt behaves like Start, but jumps straight to name/scope (resolved the
@@ -606,8 +628,9 @@ func (s *Shell) Start(rootResource string) error {
 // Run()) would deadlock instead.
 func (s *Shell) StartAt(root, name, scope string) error {
 	s.restoreFallback = root
-	go s.app.QueueUpdateDraw(func() { s.runCommand(name, scope) })
-	return s.app.Run()
+	s.installTerminalGuards()
+	crash.Go(func() { s.app.QueueUpdateDraw(func() { s.runCommand(name, scope) }) })
+	return s.runUI()
 }
 
 func (s *Shell) Stop() {

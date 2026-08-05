@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/taskcluster/tc-tui/crash"
 	"github.com/taskcluster/tc-tui/taskcluster"
 )
 
@@ -147,7 +148,7 @@ func (r *WorkerPoolsResource) Augment(rows []Row, wanted func(id string) bool, o
 	}
 
 	wg.Add(1)
-	go func() {
+	crash.Go(func() {
 		defer wg.Done()
 
 		errorCounts, err := r.tc.GetWorkerPoolErrorCounts()
@@ -164,7 +165,7 @@ func (r *WorkerPoolsResource) Augment(rows []Row, wanted func(id string) bool, o
 		}
 		tick()
 		mu.Unlock()
-	}()
+	})
 
 	ids := make([]string, len(rows))
 	for i, row := range rows {
@@ -172,7 +173,7 @@ func (r *WorkerPoolsResource) Augment(rows []Row, wanted func(id string) bool, o
 	}
 
 	wg.Add(1)
-	go func() {
+	crash.Go(func() {
 		defer wg.Done()
 		r.tc.GetTaskQueueCounts(ids, wanted, func(id string, counts taskcluster.TaskQueueCounts) {
 			mu.Lock()
@@ -196,7 +197,7 @@ func (r *WorkerPoolsResource) Augment(rows []Row, wanted func(id string) bool, o
 			tick()
 			mu.Unlock()
 		})
-	}()
+	})
 
 	wg.Wait()
 }

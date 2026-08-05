@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-
-	"github.com/rivo/tview"
 )
 
 // errEditorScreenUnavailable is returned by editInEditor when
@@ -44,12 +42,33 @@ func classifyEditorRun(editor string, err error) error {
 	return fmt.Errorf("launch %q: %w", editor, err)
 }
 
+// suspendScreen is Application.Suspend with the screen gate held across both
+// of tcell's transitions — the disengage Suspend performs before calling f, and
+// the engage it performs after f returns — but not across f itself, so a
+// teardown arriving while the editor is up isn't stuck behind it. See
+// screenGate for what overlapping a Fini with either transition costs.
+//
+// The gate is balanced on every path: Suspend skips f entirely when there's no
+// screen (returning false), and the inner leave/enter pair only runs if it
+// didn't.
+func (s *Shell) suspendScreen(f func()) bool {
+	s.screen.enter()
+	defer s.screen.leave()
+
+	return s.app.Suspend(func() {
+		s.screen.leave()
+		defer s.screen.enter()
+
+		f()
+	})
+}
+
 // editInEditor seeds a temp file with seed, suspends the tview screen to hand
 // the terminal to $EDITOR/$VISUAL, and returns the file's contents once the
 // editor exits. It must be called on the event-loop goroutine (an input
 // handler, or a queued initial dispatch) — never wrapped in another
 // QueueUpdate/Draw, which would deadlock (see runEditorHandoff).
-func editInEditor(app *tview.Application, seed string) (string, error) {
+func (s *Shell) editInEditor(seed string) (string, error) {
 	f, err := os.CreateTemp("", "tc-tui-task-*.yaml")
 	if err != nil {
 		return "", fmt.Errorf("create temp file: %w", err)
@@ -64,7 +83,7 @@ func editInEditor(app *tview.Application, seed string) (string, error) {
 
 	editor := resolveEditor(os.Getenv)
 	var runErr error
-	ok := app.Suspend(func() {
+	ok := s.suspendScreen(func() {
 		cmd := exec.Command("sh", "-c", editor+` "$1"`, "sh", path) // #nosec G204
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 		runErr = classifyEditorRun(editor, cmd.Run())

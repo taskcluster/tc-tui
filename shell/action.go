@@ -6,6 +6,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
+	"github.com/taskcluster/tc-tui/crash"
 	"github.com/taskcluster/tc-tui/resource"
 )
 
@@ -451,7 +452,7 @@ func (s *Shell) performActionInput(a resource.Action, raw string, setStatus func
 	s.actionBusy = true
 	setStatus("Working…", false)
 
-	go func() {
+	crash.Go(func() {
 		err := a.Perform(input)
 		s.app.QueueUpdateDraw(func() {
 			s.actionBusy = false
@@ -461,7 +462,7 @@ func (s *Shell) performActionInput(a resource.Action, raw string, setStatus func
 			}
 			s.finishAction(a)
 		})
-	}()
+	})
 }
 
 // finishAction runs once Perform succeeds: it drops the caches the mutation

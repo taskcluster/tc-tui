@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed the terminal being left unusable — no mouse-wheel scrollback, stray raw mode — when `tc-tui` did not
+  exit through its own quit path. It now hands the terminal back before terminating on `SIGTERM` (`kill`) or
+  `SIGHUP` (terminal window closed), including mid-`$EDITOR` handoff, and before a panic on any background
+  goroutine takes the process down. `SIGKILL` remains unrecoverable.
+- Fixed a session ended by `SIGTERM`/`SIGHUP` reporting success; it now exits `128+signo` (143/129) like any
+  other signalled program, after saving navigation state as usual.
+
 ## [1.0.0] - 2026-08-05
 
 This is the initial public release of `tc-tui`. It includes the original prototype work and the 2026 rewrite

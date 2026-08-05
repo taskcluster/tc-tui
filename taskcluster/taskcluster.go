@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/taskcluster/tc-tui/crash"
+
 	tcurls "github.com/taskcluster/taskcluster-lib-urls"
 	tcclient "github.com/taskcluster/taskcluster/v101/clients/client-go"
 	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcauth"
@@ -315,7 +317,7 @@ func (tc *TC) GetTaskQueueCounts(workerPoolIDs []string, wanted func(workerPoolI
 
 		wg.Add(1)
 		sem <- struct{}{}
-		go func(id string) {
+		crash.Go(func() {
 			defer wg.Done()
 			defer func() { <-sem }()
 
@@ -340,7 +342,7 @@ func (tc *TC) GetTaskQueueCounts(workerPoolIDs []string, wanted func(workerPoolI
 				result.Claimed, result.ClaimedKnown = int64(len(claimed)), true
 			}
 			onEach(id, result)
-		}(id)
+		})
 	}
 
 	wg.Wait()

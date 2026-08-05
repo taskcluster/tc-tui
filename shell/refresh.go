@@ -1,6 +1,10 @@
 package shell
 
-import "time"
+import (
+	"time"
+
+	"github.com/taskcluster/tc-tui/crash"
+)
 
 // isTopView reports whether view is currently the topmost view on the
 // stack.
@@ -66,7 +70,7 @@ func (s *Shell) startRefreshLoop(view View, interval time.Duration) {
 	stop := make(chan struct{})
 	s.stopRefresh = stop
 
-	go func() {
+	crash.Go(func() {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
@@ -80,7 +84,7 @@ func (s *Shell) startRefreshLoop(view View, interval time.Duration) {
 				return
 			}
 		}
-	}()
+	})
 }
 
 func (s *Shell) stopRefreshLoop() {
