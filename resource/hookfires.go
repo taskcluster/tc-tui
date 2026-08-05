@@ -74,6 +74,8 @@ func (r *HookFiresResource) ScopedList(scope string) ([]Row, error) {
 	return rows, nil
 }
 
+func (r *HookFiresResource) ScopePromptLabel() string { return "hook id (group/hookId)" }
+
 func (r *HookFiresResource) EmptyScopeResource() string { return "hooks" }
 
 // Describe is unreachable in normal use — see the type doc comment.

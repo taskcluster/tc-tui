@@ -37,6 +37,8 @@ func buildHelpText(registry *resource.Registry) string {
 	b.WriteString("[green]Global keys[white]\n\n")
 	b.WriteString("  [yellow]q[white]     quit from any view (also `:quit` / `:q` from the command bar)\n")
 	b.WriteString("  [yellow]:[white]     open the command bar (switch resource, e.g. `:workerpools`, `:wp`, `:workers <poolId>`, `:help`, `:quit`)\n")
+	b.WriteString("  [yellow]Ctrl-A[white]  open the command palette — every command and its aliases as a filterable list; " +
+		"select a row to run it (also `:commands`). Press Ctrl-A or Esc again to dismiss it\n")
 	b.WriteString("  [yellow]/[white]     filter the current list's rows, or a detail body's lines " +
 		"(including a live-streaming log) — narrows to lines/rows containing the query, highlighting " +
 		"the match within each surviving line once the query is longer than 2 characters\n")
@@ -93,7 +95,17 @@ func buildHelpText(registry *resource.Registry) string {
 			res.Name(), aliases, res.Description(), strings.Join(columns, ", "),
 		))
 
-		if scoped, isScoped := res.(resource.ScopedResource); isScoped {
+		if prompt, wantsPrompt := res.(resource.ScopePrompt); wantsPrompt {
+			line := fmt.Sprintf(
+				"      requires a scope, e.g. `:%s <id>` — no scope asks for a %s",
+				res.Name(), prompt.ScopePromptLabel(),
+			)
+			// Only advertised when blank actually leads to a browsable list.
+			if fallback, canBrowse := browsableFallbackIn(registry, prompt.EmptyScopeResource()); canBrowse {
+				line += fmt.Sprintf(" (leave it blank to browse `%s` instead)", fallback)
+			}
+			b.WriteString(line + "\n")
+		} else if scoped, isScoped := res.(resource.ScopedResource); isScoped {
 			b.WriteString(fmt.Sprintf(
 				"      requires a scope, e.g. `:%s <id>` — no scope redirects to `%s`\n",
 				res.Name(), scoped.EmptyScopeResource(),

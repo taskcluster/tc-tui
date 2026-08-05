@@ -107,6 +107,8 @@ func workerRows(workers taskcluster.WorkerList) []Row {
 	return rows
 }
 
+func (r *WorkersResource) ScopePromptLabel() string { return "worker pool id" }
+
 func (r *WorkersResource) EmptyScopeResource() string {
 	return "workerpools"
 }

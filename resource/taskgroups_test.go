@@ -110,7 +110,7 @@ func TestTaskGroupResourceIDPromptLabel(t *testing.T) {
 func TestTaskGroupResourceEmptyScopeResource(t *testing.T) {
 	res := NewTaskGroupResource(&fakeTaskcluster{}, &taskDefHistory{}, nil)
 
-	if got := res.EmptyScopeResource(); got != "workerpools" {
-		t.Fatalf("expected %q, got %q", "workerpools", got)
+	if got := res.EmptyScopeResource(); got != "tasks" {
+		t.Fatalf("expected %q, got %q", "tasks", got)
 	}
 }

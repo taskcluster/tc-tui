@@ -62,6 +62,8 @@ func (r *ErrorsResource) ScopedList(scope string) ([]Row, error) {
 	return rows, nil
 }
 
+func (r *ErrorsResource) ScopePromptLabel() string { return "worker pool id" }
+
 func (r *ErrorsResource) EmptyScopeResource() string {
 	return "workerpools"
 }

@@ -283,8 +283,8 @@ func TestTasksResourceListReturnsError(t *testing.T) {
 func TestTasksResourceEmptyScopeResource(t *testing.T) {
 	res := NewTasksResource(&fakeTaskcluster{}, &taskDefHistory{}, nil)
 
-	if got := res.EmptyScopeResource(); got != "workerpools" {
-		t.Fatalf("expected %q, got %q", "workerpools", got)
+	if got := res.EmptyScopeResource(); got != "taskgroup" {
+		t.Fatalf("expected %q, got %q", "taskgroup", got)
 	}
 }
 

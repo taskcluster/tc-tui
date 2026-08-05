@@ -68,6 +68,8 @@ func (r *PendingTasksResource) ListPartial(taskQueueID, _ string, loadAll bool) 
 	return rows, more, nil
 }
 
+func (r *PendingTasksResource) ScopePromptLabel() string { return "worker pool id" }
+
 func (r *PendingTasksResource) EmptyScopeResource() string {
 	return "workerpools"
 }
@@ -165,6 +167,8 @@ func (r *ClaimedTasksResource) ListPartial(taskQueueID, _ string, loadAll bool) 
 
 	return rows, more, nil
 }
+
+func (r *ClaimedTasksResource) ScopePromptLabel() string { return "worker pool id" }
 
 func (r *ClaimedTasksResource) EmptyScopeResource() string {
 	return "workerpools"

@@ -7,9 +7,19 @@ GitHub builds and more — without leaving the terminal. Navigation is command-b
 
 ![Worker pools](docs/screenshots/worker-pools.png)
 
-## Install / build
+## Install
 
-Requires Go 1.26+.
+Requires Go 1.26.5+.
+
+```sh
+go install github.com/taskcluster/tc-tui@latest
+```
+
+This installs `tc-tui` into `$GOBIN` (or `$GOPATH/bin` when `GOBIN` is unset), which should be on your
+`PATH`. Once versioned releases are available, replace `@latest` with a tag such as `@v1.0.0` to install a
+specific release.
+
+To build or run the current checkout instead:
 
 ```sh
 go build .                 # produces ./tc-tui
@@ -34,7 +44,7 @@ You can jump straight to a view instead of the default/last session by passing p
 `:name scope` would in the command bar:
 
 ```sh
-tc-tui                              # resume the last session (or worker pools)
+tc-tui                              # resume the last session (or the command palette)
 tc-tui wp proj-taskcluster/ci       # open that worker pool directly
 tc-tui pending proj-taskcluster/ci  # open its pending tasks
 tc-tui task <taskId>                # open a task directly
@@ -47,11 +57,13 @@ The view stack is persisted across restarts, so `tc-tui` reopens wherever you le
 ## Usage
 
 Open the command bar with `:` and type a resource name or alias (`:wp`, `:workers <poolId>`, `:task <id>`,
-`:help`, `:quit`). Move with `j`/`k` or the arrows, `Enter` to drill in, `Esc` to go back.
+`:help`, `:quit`), or press `Ctrl-A` to pick from a filterable list of everything available. Move with
+`j`/`k` or the arrows, `Enter` to drill in, `Esc` to go back.
 
 | Key | Action |
 |---|---|
 | `:` | command bar — switch resource, e.g. `:workerpools`, `:wp`, `:workers <poolId>`, `:quit` |
+| `Ctrl-A` | command palette — every command and its aliases (resources plus `help`/`quit`) as a filterable list; `Enter` runs the selected one (also `:commands`) |
 | `/` | filter the current list's rows, or a detail body's lines (including a live-streaming log), highlighting the match |
 | `1`-`9` | sort the current list by that column, numbered left to right (press again to reverse) |
 | `Tab` / `Shift+Tab` | cycle the facet tab bar, for resources that have one (e.g. worker pools by provider, workers by state) |
@@ -77,18 +89,26 @@ workers, `p` pending, `c` claimed, `l` launch configs, `e` errors, `P` purge cac
 ## Resources
 
 Addressed by name or alias in the command bar. Press `?` inside the app for the full list with each resource's
-columns and required scope.
+columns and required scope, or `Ctrl-A` for the same list as a filterable, selectable palette.
+
+A scoped resource opened without its scope (`:workers`, or picking it from the palette) asks for one. Where a
+browsable parent list exists the prompt says `worker pool id (blank to browse)`, so you can paste the id you
+already have or press Enter on the empty field to browse and drill down instead. Where there's nothing to
+browse — Taskcluster has no "list all tasks" API — the prompt just asks for the id.
 
 **Auth & secrets**
+
 - `roles` (`role`) — IAM-style roles and the scopes they grant
 - `clients` (`client`) — auth clients (credentials) and their scopes
 - `secrets` (`secret`) — secret names and their values (fetched on open)
 
 **Hooks**
+
 - `hooks` (`hook`) — scheduled/triggered task templates across all hook groups
 - `hookfires` (`fires`) — a hook's recent fires; select one to jump to its task
 
 **Worker pools & workers**
+
 - `workerpools` (`wp`, `pools`) — provisioning config: provider, capacity, pending/claimed/error counts (faceted by provider)
 - `workers` (`w`) — individual workers in a pool (faceted by state: running/requested/stopping/stopped)
 - `recenttasks` — a worker's recent tasks
@@ -97,6 +117,7 @@ columns and required scope.
 - `purgecache` (`purge`, `cache`) — open cache-purge requests for a pool
 
 **Tasks**
+
 - `task` — a single task by id: definition, state, payload, runs, and rerun/retrigger/cancel/priority actions
 - `taskgroup` (`g`) — tasks belonging to a task group, by id
 - `tasks` (`t`) — tasks in a task group (scoped list)
@@ -107,14 +128,17 @@ columns and required scope.
 - `index` (`idx`) — browse the task index by namespace, or resolve a full index path to its task
 
 **Queue**
+
 - `pending` — tasks currently pending on a worker pool's task queue
 - `claimed` — tasks currently claimed (running) on a worker pool's task queue
 
 **GitHub**
+
 - `githubbuilds` (`builds`) — a pull request's or commit's builds (`org/repo/pull/<n>` or `org/repo/sha/<sha>`)
 - `githubrepo` (`repo`) — a repository's Taskcluster integration status (`org/repo`)
 
 **Navigation**
+
 - `history` (`hist`) — chronological log of visited resources; select a row to jump back
 
 ## Screenshots
@@ -162,10 +186,3 @@ registered in `controller.NewController()` — the shell needs no changes. See `
 
 `resource/` and `shell/` are covered by unit tests (`go test ./...`); there is no CI configured for this repo
 currently.
-
-## Notes
-
-- `.bak` files are leftover/reference files excluded from the build and ignored by git.
-- The compiled `tc-tui` binary is git-ignored; don't commit it.
-</content>
-</invoke>

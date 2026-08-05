@@ -68,6 +68,8 @@ func (r *TaskRunsResource) ScopedList(taskID string) ([]Row, error) {
 	return rows, nil
 }
 
+func (r *TaskRunsResource) ScopePromptLabel() string { return "task id" }
+
 func (r *TaskRunsResource) EmptyScopeResource() string {
 	return "task"
 }

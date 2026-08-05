@@ -77,7 +77,7 @@ session's or the default root):
   scope|id       scope or id for that resource, e.g. proj-taskcluster/ci
 
 Examples:
-  tc-tui                              resume the last session (or worker pools)
+  tc-tui                              resume the last session (or the command palette)
   tc-tui wp proj-taskcluster/ci       open that worker pool directly
   tc-tui pending proj-taskcluster/ci  open its pending tasks
   tc-tui task <taskId>                open a task directly

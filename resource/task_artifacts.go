@@ -117,6 +117,8 @@ func artifactRowsForRun(tc taskcluster.Taskcluster, taskID string, runID int64) 
 	return rows
 }
 
+func (r *TaskArtifactsResource) ScopePromptLabel() string { return "task id" }
+
 func (r *TaskArtifactsResource) EmptyScopeResource() string {
 	return "task"
 }

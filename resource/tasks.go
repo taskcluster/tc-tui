@@ -110,8 +110,12 @@ func (r *TasksResource) ListPartial(taskGroupID, _ string, loadAll bool) ([]Row,
 	return taskListRows(tasks), more, nil
 }
 
+func (r *TasksResource) ScopePromptLabel() string { return "task group id" }
+
+// EmptyScopeResource names taskgroup, which prompts for a group id: there is
+// no "list all task groups" API to browse instead.
 func (r *TasksResource) EmptyScopeResource() string {
-	return "workerpools"
+	return "taskgroup"
 }
 
 func (r *TasksResource) Describe(id string) (Detail, error) {

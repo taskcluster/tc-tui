@@ -9,12 +9,56 @@ import (
 	"github.com/taskcluster/tc-tui/resource"
 )
 
+// runCommand executes one command-bar command: the shell's own builtins
+// (`:help`, `:quit`/`:q` — see resource.BuiltinCommands) first, then a
+// registry resource via switchResource. It's the single dispatch point for
+// everything typeable after `:`, shared by the command bar, the command
+// palette's NavCommand rows, and the CLI's positional arguments — which is
+// what lets the palette list the builtins as ordinary rows.
+func (s *Shell) runCommand(name, scope string) {
+	if cmd, isBuiltin := resource.ResolveBuiltin(name); isBuiltin {
+		switch cmd.Name {
+		case "help":
+			s.ensureBaseView()
+			s.openHelp()
+		case "quit":
+			s.Stop()
+		}
+		return
+	}
+
+	s.switchResource(name, scope)
+}
+
+// ensureBaseView draws the app's initial view if the cold-start command hasn't
+// — the CLI's first command can OVERLAY the screen (`tc-tui help`,
+// `tc-tui createtask`) rather than navigate to a view of its own, and StartAt
+// renders nothing itself. Without this, dismissing that overlay drops the user
+// on the empty table page that was never filled in.
+//
+// Gated on baseRendered rather than on the stack being empty: RestoreState
+// leaves last session's views on the stack without drawing any of them, so an
+// unrendered session and a restored one look identical from the stack alone.
+// renderRestoredTop then draws whichever case applies — the restored top, or
+// restoreFallback — exactly as Start would have.
+func (s *Shell) ensureBaseView() {
+	if s.baseRendered {
+		return
+	}
+	if _, restored := s.stack.Top(); !restored && s.restoreFallback == "" {
+		return // never went through Start/StartAt: nothing to fall back to
+	}
+
+	s.renderRestoredTop()
+}
+
 // switchResource replaces the entire navigation stack with a fresh List
 // view for the given resource name/alias — the `:` command bar's behavior.
 // If the resolved resource is a ScopedResource and no scope was given, it
 // redirects to that resource's EmptyScopeResource instead of attempting an
-// unscoped fetch. The "history" resource is the one exception: it's pushed
-// instead (see below), so it doesn't discard the current screen.
+// unscoped fetch. A resource.PeekResource (history, the command palette) is
+// the one exception: it's pushed instead (see below), so it doesn't discard
+// the current screen.
 func (s *Shell) switchResource(nameOrAlias, scope string) {
 	res, ok := s.registry.Resolve(nameOrAlias)
 	if !ok {
@@ -24,12 +68,23 @@ func (s *Shell) switchResource(nameOrAlias, scope string) {
 		return
 	}
 
-	// history is a navigational aid, not a destination in its own right —
-	// opening it should feel like a peek, not a fresh root. Pushed rather
-	// than reset so Esc returns to whatever screen was open before `:history`
-	// was run, instead of that screen being discarded from the stack.
-	if res.Name() == "history" {
-		s.stack.Push(View{ResourceName: res.Name(), Kind: ListKind})
+	// A peek resource is a navigational aid, not a destination in its own
+	// right. Pushed rather than reset so Esc returns to whatever screen was
+	// open before it — unless it's already the top view, in which case
+	// re-opening it (`:hist` from history, Ctrl-A from the palette) would
+	// stack a second identical copy for Esc to pop through. An argument still
+	// means what it means everywhere else (`:commands workers` describes that
+	// one entry), via showDetail so that it's pushed too.
+	if _, isPeek := res.(resource.PeekResource); isPeek {
+		if scope != "" {
+			s.showDetail(res.Name(), scope)
+			return
+		}
+
+		view := View{ResourceName: res.Name(), Kind: ListKind}
+		if top, hasTop := s.stack.Top(); !hasTop || top != view {
+			s.stack.Push(view)
+		}
 		s.renderList(res, "", false)
 		return
 	}
@@ -64,6 +119,10 @@ func (s *Shell) switchResource(nameOrAlias, scope string) {
 
 	if scoped, isScoped := res.(resource.ScopedResource); isScoped {
 		if scope == "" {
+			if sp, wantsPrompt := res.(resource.ScopePrompt); wantsPrompt {
+				s.openScopePrompt(sp)
+				return
+			}
 			s.switchResource(scoped.EmptyScopeResource(), "")
 			return
 		}
@@ -74,15 +133,11 @@ func (s *Shell) switchResource(nameOrAlias, scope string) {
 
 	// A command-only resource (:createtask) has no list/detail view — fire its
 	// single action directly, overlaying whatever screen is showing. On a cold
-	// start (CLI `tc-tui createtask`) there is no view underneath; establish the
-	// root fallback first so cancel or an editor-launch failure returns to a
-	// usable screen, not a blank one. (restoreFallback is set by StartAt/Start;
-	// when empty — e.g. unit tests with a pushed base stack — the guard is a
-	// no-op because Top() already exists.)
+	// start (CLI `tc-tui createtask`) there is no view underneath, so cancel or
+	// an editor-launch failure needs a base view to return to — see
+	// ensureBaseView.
 	if ca, isCommand := res.(resource.CommandAction); isCommand {
-		if _, hasBase := s.stack.Top(); !hasBase && s.restoreFallback != "" {
-			s.switchResource(s.restoreFallback, "")
-		}
+		s.ensureBaseView()
 		s.startAction(ca.CommandAction())
 		return
 	}
@@ -98,6 +153,81 @@ func (s *Shell) switchResource(nameOrAlias, scope string) {
 
 	s.stack.ResetTo(View{ResourceName: res.Name(), Kind: ListKind})
 	s.renderList(res, "", false)
+}
+
+// openScopePrompt asks for sp's scope, the way a bare `:workers` (or picking
+// it from the command palette) is handled — see resource.ScopePrompt. An
+// entered id opens the scoped list directly; an empty submit falls back to the
+// parent-list redirect, which the label advertises.
+//
+// The blank-to-browse half is offered only where the fallback is somewhere you
+// can actually browse (see browsableFallbackIn). Where it just prompts again —
+// artifacts → task — the hint would be a lie, so those get an ordinary
+// required prompt instead.
+func (s *Shell) openScopePrompt(sp resource.ScopePrompt) {
+	label := sp.ScopePromptLabel()
+
+	fallback, canBrowse := browsableFallbackIn(s.registry, sp.EmptyScopeResource())
+	if !canBrowse {
+		s.openIDPrompt(label, historyKeyIDPrompt, func(id string) {
+			s.switchResource(sp.Name(), id)
+		})
+		return
+	}
+
+	s.openPrompt(label+" (blank to browse)", historyKeyIDPrompt, true, func(id string) {
+		if id == "" {
+			s.switchResource(fallback, "")
+			return
+		}
+		s.switchResource(sp.Name(), id)
+	})
+}
+
+// browsableFallbackIn reports whether name resolves to a resource that renders
+// a pick-from-it list with no argument — the only case where offering "submit
+// blank to browse instead" leads anywhere useful. Shared by the prompt itself
+// and by the help text that documents it, so the two can't disagree.
+//
+// Everything that would instead demand another id is excluded: a DirectLookup
+// or DirectScopedResource (both prompt), a ScopedResource (prompts, or
+// redirects onward to something that does), and a CommandAction (runs a
+// mutation rather than showing anything).
+func browsableFallbackIn(registry *resource.Registry, name string) (string, bool) {
+	if name == "" {
+		return "", false
+	}
+
+	res, ok := registry.Resolve(name)
+	if !ok {
+		return "", false
+	}
+
+	switch res.(type) {
+	case resource.DirectLookup, resource.ScopedResource, resource.CommandAction:
+		return "", false
+	}
+
+	return res.Name(), true
+}
+
+// toggleCommandPalette opens the command palette over the current view — the
+// Ctrl-A key — or dismisses it again when it's already the top view. The
+// palette is a PeekResource, so switchResource pushes rather than resets and
+// Esc works to close it too. A registry without it registered (a minimal test
+// registry) makes the key a no-op rather than an error screen.
+func (s *Shell) toggleCommandPalette() {
+	res, ok := s.registry.Resolve(resource.CommandsResourceName)
+	if !ok {
+		return
+	}
+
+	if top, hasTop := s.stack.Top(); hasTop && top.Kind == ListKind && top.ResourceName == res.Name() {
+		s.goBack()
+		return
+	}
+
+	s.switchResource(res.Name(), "")
 }
 
 // switchToDetail resets the navigation stack to a Detail view for res/id —
@@ -153,6 +283,10 @@ func (s *Shell) navigateTo(target resource.NavTarget) {
 	switch target.Kind {
 	case resource.NavScopedList:
 		s.pushScopedList(target.ResourceName, target.ID)
+	case resource.NavCommand:
+		// Routed through runCommand rather than resolved here, so a palette
+		// row does exactly what typing the same text into `:` does.
+		s.runCommand(target.ResourceName, target.ID)
 	default:
 		s.showDetail(target.ResourceName, target.ID)
 	}
@@ -463,6 +597,7 @@ func (s *Shell) renderTabsBar(rows []resource.Row) {
 }
 
 func (s *Shell) renderList(res resource.Resource, scope string, isRestore bool) {
+	s.baseRendered = true
 	s.currentDetailActions = nil
 	if sa, ok := res.(resource.ScopeActions); ok {
 		s.currentDetailActions = sa.ScopeActions(scope)
@@ -1007,6 +1142,7 @@ func shouldRedrawAugmentTick(completed, total int, lastRedraw, now time.Time) bo
 }
 
 func (s *Shell) renderDetail(res resource.Resource, id string, isRestore bool) {
+	s.baseRendered = true
 	s.currentDetailActions = nil
 	s.currentActions = nil
 	s.closeFooterInput()

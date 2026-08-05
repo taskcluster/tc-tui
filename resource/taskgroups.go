@@ -69,8 +69,11 @@ func (r *TaskGroupResource) ListPartial(taskGroupID, _ string, loadAll bool) ([]
 	return taskListRows(tasks), more, nil
 }
 
+// EmptyScopeResource is unreachable — this is a DirectScopedResource, so the
+// shell prompts for a task group id first — but it names tasks rather than an
+// unrelated resource in case that routing ever changes.
 func (r *TaskGroupResource) EmptyScopeResource() string {
-	return "workerpools"
+	return "tasks"
 }
 
 // Subtitle reports whether the task group is sealed, shown in the list

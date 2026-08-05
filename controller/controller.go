@@ -7,7 +7,12 @@ import (
 	"github.com/taskcluster/tc-tui/taskcluster"
 )
 
-const rootResource = "workerpools"
+// rootResource is where a session with nothing to restore starts, and what a
+// restored stack falls back to once every view in it turns out to be stale.
+// The command palette rather than any one resource: with no history there's no
+// basis for guessing which resource was wanted, and a filterable list of every
+// command is a better answer than 184 worker pools nobody asked for.
+const rootResource = resource.CommandsResourceName
 
 type TcController interface {
 	StartUI() error
@@ -61,6 +66,9 @@ func buildRegistry(tc taskcluster.Taskcluster) *resource.Registry {
 	registry.Register(resource.NewGithubBuildsResource(tc))
 	registry.Register(resource.NewGithubRepositoryResource(tc))
 	registry.Register(resource.NewHistoryResource())
+	// Registered last, and given the registry itself: the palette lists
+	// whatever is in it, so everything above must already be present.
+	registry.Register(resource.NewCommandsResource(registry))
 	return registry
 }
 

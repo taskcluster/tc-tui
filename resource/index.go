@@ -85,7 +85,10 @@ func (r *TaskIndexResource) ScopedList(namespace string) ([]Row, error) {
 	return rows, nil
 }
 
-func (r *TaskIndexResource) EmptyScopeResource() string { return "workerpools" }
+// EmptyScopeResource is unreachable — this is a DirectScopedResource, so the
+// shell prompts for a namespace first — and empty anyway: nothing lists index
+// namespaces, so there is no parent to redirect to.
+func (r *TaskIndexResource) EmptyScopeResource() string { return "" }
 
 // Describe is unreachable — every row overrides navigation via NavTarget,
 // straight into either a deeper index ScopedList or a task's own Detail.

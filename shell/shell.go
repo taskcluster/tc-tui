@@ -2,7 +2,6 @@ package shell
 
 import (
 	"fmt"
-	"strings"
 	"sync/atomic"
 
 	"github.com/gdamore/tcell/v2"
@@ -94,6 +93,9 @@ type Shell struct {
 	footerInput         *tview.InputField
 	footerMode          footerMode
 	pendingLookupCommit func(id string) // set while footerMode == footerPrompt; called with the entered id
+	// pendingLookupAllowsEmpty commits "" on Enter with nothing typed, instead
+	// of ignoring it — only for a prompt where blank means something.
+	pendingLookupAllowsEmpty bool
 
 	// footerHistory remembers previously entered footer text, scoped per
 	// footerHistoryKey (command bar, filter, id lookup, and save-as path each
@@ -275,6 +277,12 @@ type Shell struct {
 	// per-call argument, not a field).
 	restoreFallback string
 
+	// baseRendered reports whether any view has been drawn yet this session.
+	// pageTable is the front page from construction and RestoreState fills the
+	// stack without drawing it, so neither the content area nor the stack can
+	// answer that on their own — see ensureBaseView.
+	baseRendered bool
+
 	// rootURL is set once via SetInfo and used to build web UI links for the
 	// 'o' key (see openInBrowser).
 	rootURL string
@@ -433,6 +441,9 @@ func (s *Shell) globalInputCapture(event *tcell.EventKey) *tcell.EventKey {
 	case event.Rune() == ':':
 		s.openCommandBar()
 		return nil
+	case event.Key() == tcell.KeyCtrlA:
+		s.toggleCommandPalette()
+		return nil
 	case event.Rune() == '/':
 		switch name, _ := s.content.GetFrontPage(); name {
 		case pageTable, pageDetail:
@@ -515,13 +526,6 @@ func isQuitKey(event *tcell.EventKey) bool {
 	return event.Key() == tcell.KeyRune && event.Rune() == 'q'
 }
 
-// isQuitCommand reports whether a `:` command-bar word means "quit the app",
-// the command-bar counterpart of the global `q` key (isQuitKey). Accepts the
-// long form and the single-letter shorthand.
-func isQuitCommand(name string) bool {
-	return strings.EqualFold(name, "quit") || strings.EqualFold(name, "q")
-}
-
 // hasFacets reports whether the current list view has a facet tab bar —
 // either client-side (Faceted) or server-side (ServerFaceted).
 func (s *Shell) hasFacets() bool {
@@ -602,7 +606,7 @@ func (s *Shell) Start(rootResource string) error {
 // Run()) would deadlock instead.
 func (s *Shell) StartAt(root, name, scope string) error {
 	s.restoreFallback = root
-	go s.app.QueueUpdateDraw(func() { s.switchResource(name, scope) })
+	go s.app.QueueUpdateDraw(func() { s.runCommand(name, scope) })
 	return s.app.Run()
 }
 

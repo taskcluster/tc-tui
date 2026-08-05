@@ -31,6 +31,19 @@ type fakeScopedResource struct {
 func (f fakeScopedResource) ScopedList(scope string) ([]resource.Row, error) { return nil, nil }
 func (f fakeScopedResource) EmptyScopeResource() string                      { return f.emptyScope }
 
+type fakeScopePromptResource struct {
+	fakeScopedResource
+	promptLabel string
+}
+
+func (f fakeScopePromptResource) ScopePromptLabel() string { return f.promptLabel }
+
+type fakePeekResource struct {
+	fakeResource
+}
+
+func (f fakePeekResource) IsPeek() {}
+
 type fakeDirectLookupResource struct {
 	fakeResource
 	label string

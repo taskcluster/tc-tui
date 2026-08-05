@@ -91,6 +91,8 @@ func dependencyRow(tc taskcluster.Taskcluster, depID string) Row {
 	return Row{ID: depID, Cells: []string{depID, name, renderTaskState(status.State), workerPool, age}}
 }
 
+func (r *TaskDependenciesResource) ScopePromptLabel() string { return "task id" }
+
 func (r *TaskDependenciesResource) EmptyScopeResource() string {
 	return "task"
 }
@@ -164,6 +166,8 @@ func (r *TaskDependentsResource) ScopedList(taskID string) ([]Row, error) {
 
 	return taskListRows(tasks), nil
 }
+
+func (r *TaskDependentsResource) ScopePromptLabel() string { return "task id" }
 
 func (r *TaskDependentsResource) EmptyScopeResource() string {
 	return "task"

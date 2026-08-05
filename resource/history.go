@@ -42,6 +42,8 @@ func (r *HistoryResource) Description() string {
 	return "Chronological log of visited resources — select a row to jump back to it"
 }
 
+func (r *HistoryResource) IsPeek() {}
+
 func (r *HistoryResource) Columns() []Column {
 	return []Column{
 		{Title: "RESOURCE TYPE", Width: 20},

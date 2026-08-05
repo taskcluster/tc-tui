@@ -128,7 +128,7 @@ func TestTaskIndexResourceIDPromptLabel(t *testing.T) {
 func TestTaskIndexResourceEmptyScopeResource(t *testing.T) {
 	res := NewTaskIndexResource(&fakeTaskcluster{})
 
-	if got := res.EmptyScopeResource(); got != "workerpools" {
-		t.Fatalf("expected %q, got %q", "workerpools", got)
+	if got := res.EmptyScopeResource(); got != "" {
+		t.Fatalf("expected no empty-scope redirect target, got %q", got)
 	}
 }

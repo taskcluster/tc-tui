@@ -53,6 +53,11 @@ const (
 	NavDetail NavTargetKind = iota
 	// NavScopedList pushes a Resource's List view, scoped to this ID.
 	NavScopedList
+	// NavCommand runs ResourceName exactly as typing `:<name> <id>` into the
+	// command bar would, leaving the routing to the shell rather than the row.
+	// ID is the optional argument. Used by CommandsResource, whose rows are
+	// commands rather than entities.
+	NavCommand
 )
 
 // NavTarget identifies a resource/id pair to navigate to. The shell executes
@@ -107,6 +112,23 @@ type ScopedResource interface {
 	EmptyScopeResource() string // resource name to show when no scope is given
 }
 
+// ScopePrompt is implemented by a ScopedResource that should ask for its
+// scope when opened without one (`:workers`, or picking it from the command
+// palette) rather than silently redirecting to EmptyScopeResource, which reads
+// as the command having gone somewhere else entirely. The redirect isn't lost:
+// where it leads somewhere browsable the shell labels the prompt
+// "<label> (blank to browse)" and an empty submit follows it.
+//
+// Distinct from DirectScopedResource, which also prompts but has no parent to
+// fall back to and is routed before the ScopedResource branch entirely.
+type ScopePrompt interface {
+	ScopedResource
+	// ScopePromptLabel names what the scope is, e.g. "worker pool id". The
+	// shell appends the blank-to-browse hint itself, so implementations must
+	// not.
+	ScopePromptLabel() string
+}
+
 // DirectScopedResource is a ScopedResource that's reached by looking its
 // scope up directly by ID (e.g. a task group ID pasted from a URL or log)
 // rather than by drilling down from a parent list. The shell prompts for an
@@ -115,6 +137,18 @@ type ScopedResource interface {
 type DirectScopedResource interface {
 	ScopedResource
 	IDPromptLabel() string
+}
+
+// PeekResource is implemented by a resource that's a navigational aid rather
+// than a destination in its own right — the history log, the command palette.
+// Opening one should feel like a peek, not a fresh root, so the shell pushes
+// it onto the view stack instead of resetting to it: Esc returns to whatever
+// screen was open before, rather than that screen having been discarded.
+type PeekResource interface {
+	Resource
+	// IsPeek carries no behavior; it exists only so this interface isn't
+	// structurally identical to Resource, which every Resource would satisfy.
+	IsPeek()
 }
 
 // ScopeSubtitle is implemented by a ScopedResource whose List view wants

@@ -122,6 +122,8 @@ func launchConfigRows(configs taskcluster.WorkerPoolLaunchConfigList) []Row {
 	return rows
 }
 
+func (r *LaunchConfigsResource) ScopePromptLabel() string { return "worker pool id" }
+
 func (r *LaunchConfigsResource) EmptyScopeResource() string {
 	return "workerpools"
 }

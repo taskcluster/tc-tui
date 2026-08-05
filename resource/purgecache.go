@@ -56,6 +56,8 @@ func (r *PurgeCacheResource) ScopedList(workerPoolID string) ([]Row, error) {
 	return rows, nil
 }
 
+func (r *PurgeCacheResource) ScopePromptLabel() string { return "worker pool id" }
+
 func (r *PurgeCacheResource) EmptyScopeResource() string { return "workerpools" }
 
 func (r *PurgeCacheResource) ScopeActions(scope string) []DetailAction {

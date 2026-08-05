@@ -50,6 +50,7 @@ func (s *Shell) renderHeaderHints() {
 	hints := []hint{
 		{"q quit", "[yellow]q[white] quit"},
 		{": command", "[yellow]:[white] command"},
+		{"Ctrl-A commands", "[yellow]Ctrl-A[white] commands"},
 		{"r refresh", "[yellow]r[white] refresh"},
 		{"Esc back", "[yellow]Esc[white] back"},
 		{"? help", "[yellow]?[white] help"},
@@ -219,10 +220,19 @@ func (s *Shell) clearActiveFilter() bool {
 // semantically different prompt (id lookup vs. save path) so one never
 // pollutes the other's history.
 func (s *Shell) openIDPrompt(label string, historyKey footerHistoryKey, commit func(id string)) {
+	s.openPrompt(label, historyKey, false, commit)
+}
+
+// openPrompt is openIDPrompt with control over whether an empty submit is
+// meaningful. allowEmpty=false keeps the prompt open on Enter with nothing
+// typed; allowEmpty=true calls commit("") instead, for a prompt where blank
+// means something specific — see openScopePrompt.
+func (s *Shell) openPrompt(label string, historyKey footerHistoryKey, allowEmpty bool, commit func(id string)) {
 	s.footerMode = footerPrompt
 	s.footerHistoryKey = historyKey
 	s.resetFooterHistoryNav()
 	s.pendingLookupCommit = commit
+	s.pendingLookupAllowsEmpty = allowEmpty
 	s.footerInput.SetLabel(fmt.Sprintf("[yellow]%s:[white] ", label)).SetText("")
 	s.footer.SwitchToPage(pageFooterInput)
 	s.app.SetFocus(s.footerInput)
@@ -315,14 +325,7 @@ func (s *Shell) handleFooterInputDone(key tcell.Key) {
 			s.recordFooterHistory(s.footerHistoryKey, s.footerInput.GetText())
 			name, scope := splitCommand(s.footerInput.GetText())
 			s.closeFooterInput()
-			switch {
-			case strings.EqualFold(name, "help"):
-				s.openHelp()
-			case isQuitCommand(name):
-				s.Stop()
-			default:
-				s.switchResource(name, scope)
-			}
+			s.runCommand(name, scope)
 		case footerFilter:
 			s.recordFooterHistory(s.footerHistoryKey, s.footerInput.GetText())
 			// The detail-page filter is already applied live by
@@ -335,10 +338,10 @@ func (s *Shell) handleFooterInputDone(key tcell.Key) {
 			s.closeFooterInput()
 		case footerPrompt:
 			id := strings.TrimSpace(s.footerInput.GetText())
-			if id == "" {
+			if id == "" && !s.pendingLookupAllowsEmpty {
 				return // keep the prompt open; nothing to look up yet
 			}
-			s.recordFooterHistory(s.footerHistoryKey, id)
+			s.recordFooterHistory(s.footerHistoryKey, id) // no-op for the empty submit
 			commit := s.pendingLookupCommit
 			s.pendingLookupCommit = nil
 			s.closeFooterInput()

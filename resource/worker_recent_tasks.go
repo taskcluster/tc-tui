@@ -61,6 +61,8 @@ func (r *WorkerRecentTasksResource) ScopedList(workerID string) ([]Row, error) {
 	return rows, nil
 }
 
+func (r *WorkerRecentTasksResource) ScopePromptLabel() string { return "worker id (pool::group::id)" }
+
 func (r *WorkerRecentTasksResource) EmptyScopeResource() string {
 	return "workerpools"
 }

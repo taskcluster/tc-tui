@@ -1724,7 +1724,7 @@ func TestSwitchResourceDirectScopedResourceWithIDPushesScopedList(t *testing.T) 
 func TestSwitchResourceHistoryPushesRatherThanResets(t *testing.T) {
 	registry := resource.NewRegistry()
 	registry.Register(fakeResource{name: "workerpools", aliases: []string{"wp"}})
-	registry.Register(fakeResource{name: "history", aliases: []string{"hist"}})
+	registry.Register(fakePeekResource{fakeResource{name: "history", aliases: []string{"hist"}}})
 	s := New(registry)
 
 	// Simulate having a screen open before `:history` is run.
@@ -1756,7 +1756,7 @@ func TestNavigateToFromHistoryReplacesHistoryInsteadOfStackingOnTopOfIt(t *testi
 		fakeResource: fakeResource{name: "task"},
 		label:        "task id",
 	})
-	registry.Register(fakeResource{name: "history", aliases: []string{"hist"}})
+	registry.Register(fakePeekResource{fakeResource{name: "history", aliases: []string{"hist"}}})
 	s := New(registry)
 
 	// Open a screen, then `:history`, then jump to a row's target — as if
