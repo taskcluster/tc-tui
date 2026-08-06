@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-06
+
+### Added
+
+- Added masked-by-default secret details. Secret keys and structure remain visible while every scalar value is
+  replaced with a fixed-width mask; press `v` to reveal values and `v` again to hide them. Reveals apply only
+  to the current visit, are removed immediately when hidden, and are never written to the detail cache.
+
 ### Fixed
 
 - Fixed the terminal being left unusable — no mouse-wheel scrollback, stray raw mode — when `tc-tui` did not
