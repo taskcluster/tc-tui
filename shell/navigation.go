@@ -479,7 +479,8 @@ func (s *Shell) toggleDetailLineNumbers() {
 // refreshDetailTitle rebuilds the detail page's title from
 // currentDetailTitle, appending a "[no wrap]" suffix while word-wrap is
 // toggled off — the detail-page counterpart of refreshTable's "[no
-// truncation]" suffix — and a "(query)" suffix while a '/' filter is active,
+// truncation]" suffix — a "[revealed]" suffix while masked content is being
+// shown in the clear, and a "(query)" suffix while a '/' filter is active,
 // mirroring refreshTable's own filter suffix.
 func (s *Shell) refreshDetailTitle() {
 	title := s.currentDetailTitle
@@ -488,6 +489,9 @@ func (s *Shell) refreshDetailTitle() {
 	}
 	if s.detail.LineNumbersEnabled() {
 		title += " [#]"
+	}
+	if s.detailRevealed {
+		title += " [revealed]"
 	}
 	if query := s.detail.FilterQuery(); query != "" {
 		title += " (" + query + ")"
@@ -1146,6 +1150,10 @@ func (s *Shell) renderDetail(res resource.Resource, id string, isRestore bool) {
 	s.baseRendered = true
 	s.currentDetailActions = nil
 	s.currentActions = nil
+	// A fresh render always starts masked — a reveal is scoped to one visit.
+	// Routed through setDetailRevealed so the epoch advances even when the
+	// view being left wasn't revealed, retiring any fetch dispatched under it.
+	s.setDetailRevealed(false)
 	s.closeFooterInput()
 
 	s.renderHeaderHints()
@@ -1186,6 +1194,8 @@ func (s *Shell) renderDetail(res resource.Resource, id string, isRestore bool) {
 // shouldn't be treated as if this were the first content it's ever shown.
 func (s *Shell) loadDetail(res resource.Resource, id string, isInitial, isRestore, primed bool) {
 	gen := s.nextLoadGeneration(isInitial)
+	revealed := s.detailRevealed
+	revealEpoch := s.revealEpoch
 
 	crash.Go(func() {
 		// A currently-live id streams instead of Describe-ing — checked
@@ -1195,13 +1205,16 @@ func (s *Shell) loadDetail(res resource.Resource, id string, isInitial, isRestor
 			return
 		}
 
-		detail, err := res.Describe(id)
+		detail, err := describeDetail(res, id, revealed)
 		s.app.QueueUpdateDraw(func() {
 			if s.isStaleLoad(gen) {
 				return // a newer navigation dispatch has started since — even for the same View
 			}
 			if !s.isTopView(View{ResourceName: res.Name(), Kind: DetailKind, SelectedID: id}) {
 				return
+			}
+			if revealEpoch != s.revealEpoch {
+				return // 'v' has been toggled since this fetch was dispatched — drop it rather than putting cleartext back on a screen just cleared of it
 			}
 
 			if err != nil {
@@ -1222,7 +1235,12 @@ func (s *Shell) loadDetail(res resource.Resource, id string, isInitial, isRestor
 				return
 			}
 
-			s.detailCache.set(detailCacheKeyFor(res, id), detailCacheEntry{detail: detail, fetchedAt: time.Now()})
+			// A revealed body must never be cached: renderDetail's primed path
+			// redraws from the cache without anyone having asked for a reveal,
+			// and every other reader assumes the masked rendering.
+			if !revealed {
+				s.detailCache.set(detailCacheKeyFor(res, id), detailCacheEntry{detail: detail, fetchedAt: time.Now()})
+			}
 
 			if isInitial && !primed {
 				s.detail.SetData(detail)

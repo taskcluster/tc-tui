@@ -52,6 +52,9 @@ func buildHelpText(registry *resource.Registry) string {
 		"once it's off\n")
 	b.WriteString("  [yellow]n[white]     on a detail view, toggle a vim-like line-number gutter — a filtered line keeps " +
 		"its original number, so you can still tell where it sat among the lines the query hid\n")
+	b.WriteString("  [yellow]v[white]     on a detail view that masks its content by default (a secret's values), " +
+		"reveal it in the clear — press again to hide it. A reveal lasts for that visit only: navigating away " +
+		"and back shows the masked view again, and revealed content is never cached\n")
 	b.WriteString("  [yellow]L[white]     load ALL rows of a truncated list — very large lists (big task groups, " +
 		"stopped workers, deep task queues) fetch only their first ~1000 rows up front, shown as a [yellow]N+[white] " +
 		"row count in the title\n")

@@ -72,6 +72,7 @@ Open the command bar with `:` and type a resource name or alias (`:wp`, `:worker
 | `r` | refresh the current view, bypassing the cache |
 | `x` | on a list, toggle column truncation (then `←`/`→` to scroll columns); on a detail, toggle word-wrap |
 | `n` | on a detail view, toggle a vim-like line-number gutter |
+| `v` | on a detail view that masks its content by default (a secret's values), reveal it in the clear; press again to hide. Lasts for that visit only, and revealed content is never cached |
 | `L` | load ALL rows of a truncated list (large lists fetch ~1000 rows up front, shown as `N+` in the title) |
 | `o` | open the current view in Taskcluster's web UI, if it has one |
 | `s` | save the current view's content to a local file, if supported (e.g. an artifact) |
@@ -100,7 +101,9 @@ browse — Taskcluster has no "list all tasks" API — the prompt just asks for 
 
 - `roles` (`role`) — IAM-style roles and the scopes they grant
 - `clients` (`client`) — auth clients (credentials) and their scopes
-- `secrets` (`secret`) — secret names and their values (fetched on open)
+- `secrets` (`secret`) — secret names; opening one shows its keys and structure with every value masked
+  (`••••••••`). Press `v` to reveal the values in the clear, `v` again to hide them. A reveal lasts for that
+  visit only — navigating away and back shows the masked view again — and revealed content is never cached.
 
 **Hooks**
 

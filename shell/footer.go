@@ -65,6 +65,14 @@ func (s *Shell) renderHeaderHints() {
 		hints = append(hints, hint{"/ filter", "[yellow]/[white] filter"})
 		hints = append(hints, hint{"x wrap", "[yellow]x[white] wrap"})
 		hints = append(hints, hint{"n line numbers", "[yellow]n[white] line numbers"})
+		// Red like a mutating action's key, not yellow like the toggles above.
+		if _, _, ok := s.currentRevealable(); ok {
+			if s.detailRevealed {
+				hints = append(hints, hint{"v hide values", "[red]v[white] hide values"})
+			} else {
+				hints = append(hints, hint{"v reveal values", "[red]v[white] reveal values"})
+			}
+		}
 	}
 	if s.hasFacets() {
 		hints = append(hints, hint{"Tab/Shift+Tab switch state", "[yellow]Tab[white]/[yellow]Shift+Tab[white] switch state"})

@@ -289,6 +289,21 @@ type LiveStreamer interface {
 	StreamDetail(id string, stop <-chan struct{}, onStart func(Detail), onAppend func(text string)) (truncated bool, err error)
 }
 
+// Revealable is implemented by a Resource whose Describe deliberately masks
+// sensitive content (a secret's values), so that merely opening the entity —
+// or leaving it on screen, or auto-refreshing it — never puts that content
+// in front of whoever can see the terminal.
+//
+// Describe stays the safe, masked rendering that everything else uses: the
+// shell calls DescribeRevealed only for the entity currently on screen, only
+// after the user explicitly asks for it with the reveal key, and never
+// caches or persists what it returns. Reveal is per-visit, not per-entity —
+// navigating away and back re-masks.
+type Revealable interface {
+	Resource
+	DescribeRevealed(id string) (Detail, error)
+}
+
 // WebLinkable is implemented by resources that have a corresponding page in
 // Taskcluster's web UI (a different app sharing the same root URL), letting
 // the shell open that page in a browser. DetailWebURL builds the link for a

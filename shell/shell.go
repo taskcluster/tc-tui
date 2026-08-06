@@ -138,6 +138,23 @@ type Shell struct {
 	currentDetailActions []resource.DetailAction
 	currentDetailTitle   string
 
+	// detailRevealed reports whether the user has asked (with 'v') to see the
+	// current Detail view's masked content in the clear — see
+	// resource.Revealable and toggleDetailReveal. Reset by renderDetail on
+	// every navigation, so a reveal never carries over to another view, or
+	// back to this one. Only ever touched on the event-loop goroutine;
+	// loadDetail captures it there before dispatching its fetch rather than
+	// letting the background goroutine read it.
+	//
+	// revealEpoch counts every change to it (see setDetailRevealed, the only
+	// writer of either). loadDetail's completion checks the epoch rather than
+	// the boolean, so an in-flight fetch is dropped by any toggle since it was
+	// dispatched — including an ABA one (reveal → hide → reveal), where the
+	// boolean alone would match again and let the older reveal's stale body
+	// overwrite the newer one's.
+	detailRevealed bool
+	revealEpoch    int
+
 	// currentActions holds the mutating actions the current Detail entity
 	// exposes (via resource.Actionable), used to render their key hints in
 	// the header. Dispatch resolves actions fresh at key-press time (see
@@ -520,6 +537,11 @@ func (s *Shell) globalInputCapture(event *tcell.EventKey) *tcell.EventKey {
 	// below instead of being swallowed.
 	case event.Rune() == 'L' && s.canLoadAllRows():
 		s.loadAllRows()
+		return nil
+	// Same reasoning as 'L' above, and it matters more here: a resource that
+	// isn't Revealable stays free to bind 'v' as a detail action of its own.
+	case event.Rune() == 'v' && s.canToggleReveal():
+		s.toggleDetailReveal()
 		return nil
 	}
 
