@@ -449,12 +449,17 @@ func TestBrowsableFallback(t *testing.T) {
 		fakeResource: fakeResource{name: "workers"}, emptyScope: "workerpools",
 	})
 	registry.Register(fakeCommandActionResource{fakeResource{name: "createtask"}})
+	registry.Register(fakeRootBrowsableResource{fakeDirectScopedResource{
+		fakeScopedResource: fakeScopedResource{fakeResource: fakeResource{name: "index"}},
+		label:              "namespace or full index path",
+	}})
 
 	tests := []struct {
 		name string
 		want bool
 	}{
 		{"workerpools", true}, // a plain list — the only useful blank-submit target
+		{"index", true},       // RootBrowsable: opens its root list, no argument needed
 		{"task", false},       // DirectLookup: prompts again
 		{"taskgroup", false},  // DirectScopedResource: prompts again
 		{"workers", false},    // ScopedResource: prompts or redirects onward

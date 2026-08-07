@@ -58,6 +58,12 @@ type fakeDirectScopedResource struct {
 
 func (f fakeDirectScopedResource) IDPromptLabel() string { return f.label }
 
+type fakeRootBrowsableResource struct {
+	fakeDirectScopedResource
+}
+
+func (f fakeRootBrowsableResource) BrowsesRoot() {}
+
 type fakeScopeSubtitleResource struct {
 	fakeScopedResource
 	subtitle    string
@@ -166,6 +172,31 @@ func TestBuildHelpTextFlagsDirectLookupResource(t *testing.T) {
 	}
 	if strings.Contains(text, "columns:") {
 		t.Errorf("buildHelpText() should omit columns for a DirectLookup resource\ngot:\n%s", text)
+	}
+}
+
+func TestBuildHelpTextFlagsRootBrowsableResourceAsOptionallyScoped(t *testing.T) {
+	registry := resource.NewRegistry()
+	registry.Register(fakeRootBrowsableResource{fakeDirectScopedResource{
+		fakeScopedResource: fakeScopedResource{fakeResource: fakeResource{
+			name:        "index",
+			description: "Browse the task index by namespace",
+			columns:     []resource.Column{{Title: "TYPE"}},
+		}},
+		label: "namespace or full index path",
+	}})
+
+	text := buildHelpText(registry)
+
+	// Documented as a list resource, not as the DirectLookup its method set
+	// also satisfies.
+	for _, want := range []string{"index", "columns:", "scope is optional", "browses from the top"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("buildHelpText() missing %q\ngot:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "requires an id") {
+		t.Errorf("buildHelpText() should not say a root-browsable resource requires an id\ngot:\n%s", text)
 	}
 }
 

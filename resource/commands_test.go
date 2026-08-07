@@ -36,6 +36,12 @@ type stubDirectScopedResource struct {
 
 func (s stubDirectScopedResource) IDPromptLabel() string { return s.label }
 
+type stubRootBrowsableResource struct {
+	stubDirectScopedResource
+}
+
+func (s stubRootBrowsableResource) BrowsesRoot() {}
+
 type stubCommandActionResource struct {
 	stubResource
 }
@@ -222,6 +228,16 @@ func TestCommandArgumentDescribesWhatEachKindTakes(t *testing.T) {
 				label:              "task group id",
 			},
 			"<task group id>",
+		},
+		{
+			// A DirectScopedResource too, but one that opens on a root list
+			// with no argument — shown in brackets to say so.
+			"root browsable",
+			stubRootBrowsableResource{stubDirectScopedResource{
+				stubScopedResource: stubScopedResource{stubResource: stubResource{name: "index"}},
+				label:              "namespace or full index path",
+			}},
+			"[namespace or full index path]",
 		},
 		{
 			// Ditto — the palette must show what the scope actually is, not

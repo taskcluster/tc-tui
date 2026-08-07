@@ -165,8 +165,10 @@ type fakeTaskcluster struct {
 
 	indexNamespaces    taskcluster.IndexNamespaceList
 	indexNamespacesErr error
+	indexNamespacesArg string // last namespace param GetIndexNamespaces was called with
 	indexTasks         taskcluster.IndexTaskList
 	indexTasksErr      error
+	indexTasksArg      string // last namespace param GetIndexTasks was called with
 	findIndexedTask    *tcindex.IndexedTaskResponse
 	findIndexedTaskErr error
 
@@ -374,10 +376,12 @@ func (f *fakeTaskcluster) GetHookLastFires(hookGroupID, hookID string) (taskclus
 }
 
 func (f *fakeTaskcluster) GetIndexNamespaces(namespace string) (taskcluster.IndexNamespaceList, error) {
+	f.indexNamespacesArg = namespace
 	return f.indexNamespaces, f.indexNamespacesErr
 }
 
 func (f *fakeTaskcluster) GetIndexTasks(namespace string) (taskcluster.IndexTaskList, error) {
+	f.indexTasksArg = namespace
 	return f.indexTasks, f.indexTasksErr
 }
 

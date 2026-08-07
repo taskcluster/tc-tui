@@ -139,6 +139,21 @@ type DirectScopedResource interface {
 	IDPromptLabel() string
 }
 
+// RootBrowsable is implemented by a DirectScopedResource whose scopes form a
+// tree with a browsable root — the task index, whose root namespace lists the
+// top-level namespaces. Opened with no id (`:index`), the shell renders the
+// unscoped List() rather than prompting; an id still means exactly what it
+// means for any other DirectScopedResource.
+//
+// The ScopedResource contract's "List is not expected to be called" carve-out
+// is therefore lifted for these: List() must return the root scope's rows.
+type RootBrowsable interface {
+	DirectScopedResource
+	// BrowsesRoot carries no behavior; it exists only so this interface isn't
+	// structurally identical to DirectScopedResource.
+	BrowsesRoot()
+}
+
 // PeekResource is implemented by a resource that's a navigational aid rather
 // than a destination in its own right — the history log, the command palette.
 // Opening one should feel like a peek, not a fresh root, so the shell pushes

@@ -178,6 +178,10 @@ func commandArgument(res Resource) string {
 	switch typed := res.(type) {
 	case CommandAction:
 		return runsAtOnceArgument
+	case RootBrowsable:
+		// Square brackets rather than angle: a RootBrowsable opens its root
+		// list when the argument is omitted, so it's optional.
+		return "[" + typed.IDPromptLabel() + "]"
 	case DirectLookup:
 		return "<" + typed.IDPromptLabel() + ">"
 	case ScopePrompt:

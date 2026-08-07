@@ -79,7 +79,10 @@ func buildHelpText(registry *resource.Registry) string {
 			aliases = strings.Join(res.Aliases(), ", ")
 		}
 
-		if direct, isDirect := res.(resource.DirectLookup); isDirect {
+		// A RootBrowsable takes an id too, but doesn't require one and has a
+		// list of its own — it's documented with the list resources below.
+		_, browsesRoot := res.(resource.RootBrowsable)
+		if direct, isDirect := res.(resource.DirectLookup); isDirect && !browsesRoot {
 			b.WriteString(fmt.Sprintf(
 				"  [yellow]%s[white] (aliases: %s)\n      %s\n"+
 					"      requires an id, e.g. `:%s <id>` — no id opens a prompt asking for a %s\n\n",
@@ -98,7 +101,12 @@ func buildHelpText(registry *resource.Registry) string {
 			res.Name(), aliases, res.Description(), strings.Join(columns, ", "),
 		))
 
-		if prompt, wantsPrompt := res.(resource.ScopePrompt); wantsPrompt {
+		if root, isRoot := res.(resource.RootBrowsable); isRoot {
+			b.WriteString(fmt.Sprintf(
+				"      scope is optional, e.g. `:%s <%s>` — with none it browses from the top\n",
+				res.Name(), root.IDPromptLabel(),
+			))
+		} else if prompt, wantsPrompt := res.(resource.ScopePrompt); wantsPrompt {
 			line := fmt.Sprintf(
 				"      requires a scope, e.g. `:%s <id>` — no scope asks for a %s",
 				res.Name(), prompt.ScopePromptLabel(),

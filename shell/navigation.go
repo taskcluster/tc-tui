@@ -96,7 +96,10 @@ func (s *Shell) switchResource(nameOrAlias, scope string) {
 	// win, or a resource like TaskGroupResource would be routed into
 	// switchToDetail (Describe) instead of a scoped List view.
 	if dsr, isDirectScoped := res.(resource.DirectScopedResource); isDirectScoped {
-		if scope == "" {
+		// A RootBrowsable is the exception: with no id it falls through to the
+		// unscoped list, which is its root scope, rather than prompting.
+		_, browsesRoot := res.(resource.RootBrowsable)
+		if scope == "" && !browsesRoot {
 			s.openIDPrompt(dsr.IDPromptLabel(), historyKeyIDPrompt, func(id string) {
 				s.switchResource(dsr.Name(), id)
 			})
@@ -193,7 +196,9 @@ func (s *Shell) openScopePrompt(sp resource.ScopePrompt) {
 // Everything that would instead demand another id is excluded: a DirectLookup
 // or DirectScopedResource (both prompt), a ScopedResource (prompts, or
 // redirects onward to something that does), and a CommandAction (runs a
-// mutation rather than showing anything).
+// mutation rather than showing anything). A RootBrowsable is the exception
+// among those — it's a DirectScopedResource that opens on its root list, so
+// it's checked first.
 func browsableFallbackIn(registry *resource.Registry, name string) (string, bool) {
 	if name == "" {
 		return "", false
@@ -205,6 +210,8 @@ func browsableFallbackIn(registry *resource.Registry, name string) (string, bool
 	}
 
 	switch res.(type) {
+	case resource.RootBrowsable:
+		return res.Name(), true
 	case resource.DirectLookup, resource.ScopedResource, resource.CommandAction:
 		return "", false
 	}

@@ -13,6 +13,10 @@ import (
 // exact index path resolves straight to that path's currently indexed task
 // instead (tried first in ScopedList, since there's no way to tell the two
 // apart from the string alone).
+//
+// It's also RootBrowsable: the index is a tree whose root ("") is a namespace
+// like any other, so a bare `:index` lists the top-level namespaces rather
+// than demanding a path the user may not know yet.
 type TaskIndexResource struct {
 	tc taskcluster.Taskcluster
 }
@@ -24,7 +28,7 @@ func NewTaskIndexResource(tc taskcluster.Taskcluster) *TaskIndexResource {
 func (r *TaskIndexResource) Name() string      { return "index" }
 func (r *TaskIndexResource) Aliases() []string { return []string{"idx"} }
 func (r *TaskIndexResource) Description() string {
-	return "Browse the task index by namespace, or resolve a full index path directly to its task"
+	return "Browse the task index from the top or from a namespace, or resolve a full index path directly to its task"
 }
 func (r *TaskIndexResource) IDPromptLabel() string { return "namespace or full index path" }
 
@@ -37,11 +41,13 @@ func (r *TaskIndexResource) Columns() []Column {
 	}
 }
 
-// List is never expected to be called via normal navigation — a
-// DirectScopedResource always either has a scope, or opens an id prompt
-// first.
+func (r *TaskIndexResource) BrowsesRoot() {}
+
+// List browses the root namespace: the top-level index namespaces. No
+// FindIndexedTask probe here, unlike ScopedList — the root is never itself an
+// indexed task's path.
 func (r *TaskIndexResource) List() ([]Row, error) {
-	return nil, fmt.Errorf("index requires a namespace")
+	return r.browse("")
 }
 
 func (r *TaskIndexResource) ScopedList(namespace string) ([]Row, error) {
@@ -57,6 +63,13 @@ func (r *TaskIndexResource) ScopedList(namespace string) ([]Row, error) {
 		}}, nil
 	}
 
+	return r.browse(namespace)
+}
+
+// browse lists namespace's children: its sub-namespaces, then the tasks
+// indexed directly beneath it. Task names are shown relative to namespace,
+// which for the root ("") leaves them full — there's nothing to trim.
+func (r *TaskIndexResource) browse(namespace string) ([]Row, error) {
 	namespaces, err := r.tc.GetIndexNamespaces(namespace)
 	if err != nil {
 		return nil, err
@@ -85,9 +98,9 @@ func (r *TaskIndexResource) ScopedList(namespace string) ([]Row, error) {
 	return rows, nil
 }
 
-// EmptyScopeResource is unreachable — this is a DirectScopedResource, so the
-// shell prompts for a namespace first — and empty anyway: nothing lists index
-// namespaces, so there is no parent to redirect to.
+// EmptyScopeResource is unreachable — an empty scope browses the root (see
+// List) rather than redirecting — and empty anyway: there is nothing above
+// the root to redirect to.
 func (r *TaskIndexResource) EmptyScopeResource() string { return "" }
 
 // Describe is unreachable — every row overrides navigation via NavTarget,

@@ -101,11 +101,40 @@ func TestTaskIndexResourceScopedListPropagatesTasksError(t *testing.T) {
 	}
 }
 
-func TestTaskIndexResourceListRequiresScope(t *testing.T) {
-	res := NewTaskIndexResource(&fakeTaskcluster{})
+func TestTaskIndexResourceListBrowsesTheRootNamespace(t *testing.T) {
+	fake := &fakeTaskcluster{
+		indexNamespaces: taskcluster.IndexNamespaceList{
+			{Namespace: "gecko", Name: "gecko", Expires: tcclient.Time(time.Now())},
+		},
+		indexTasks: taskcluster.IndexTaskList{
+			{Namespace: "toplevel", TaskID: "task-3", Expires: tcclient.Time(time.Now())},
+		},
+	}
+	res := NewTaskIndexResource(fake)
 
-	if _, err := res.List(); err == nil {
-		t.Fatalf("expected an error for an unscoped List call")
+	rows, err := res.List()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fake.indexNamespacesArg != "" || fake.indexTasksArg != "" {
+		t.Fatalf("expected the root namespace to be listed as %q, got namespaces=%q tasks=%q",
+			"", fake.indexNamespacesArg, fake.indexTasksArg)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 rows, got %d", len(rows))
+	}
+
+	nsRow := rows[0]
+	if nsRow.Cells[0] != "namespace" || nsRow.Cells[1] != "gecko" || nsRow.NavTarget == nil ||
+		nsRow.NavTarget.ResourceName != "index" || nsRow.NavTarget.Kind != NavScopedList ||
+		nsRow.NavTarget.ID != "gecko" {
+		t.Fatalf("unexpected namespace row: %+v", nsRow)
+	}
+
+	// Nothing to trim at the root: a task's name is its full namespace.
+	taskRow := rows[1]
+	if taskRow.Cells[0] != "task" || taskRow.Cells[1] != "toplevel" || taskRow.Cells[2] != "task-3" {
+		t.Fatalf("unexpected task row: %+v", taskRow)
 	}
 }
 

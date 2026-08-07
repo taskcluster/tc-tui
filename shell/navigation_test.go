@@ -1811,6 +1811,41 @@ func TestSwitchResourceDirectScopedResourceWithoutIDOpensPrompt(t *testing.T) {
 	}
 }
 
+func TestSwitchResourceRootBrowsableWithoutIDBrowsesRoot(t *testing.T) {
+	registry := resource.NewRegistry()
+	registry.Register(fakeRootBrowsableResource{fakeDirectScopedResource{
+		fakeScopedResource: fakeScopedResource{fakeResource: fakeResource{name: "index"}},
+		label:              "namespace or full index path",
+	}})
+	s := New(registry)
+
+	s.switchResource("index", "")
+
+	if s.footerMode == footerPrompt {
+		t.Fatalf("expected no id prompt for a root-browsable resource")
+	}
+	top, ok := s.stack.Top()
+	if !ok || top.Kind != ListKind || top.Scope != "" || top.ResourceName != "index" {
+		t.Fatalf("unexpected top view: %+v (ok=%v)", top, ok)
+	}
+}
+
+func TestSwitchResourceRootBrowsableWithIDPushesScopedList(t *testing.T) {
+	registry := resource.NewRegistry()
+	registry.Register(fakeRootBrowsableResource{fakeDirectScopedResource{
+		fakeScopedResource: fakeScopedResource{fakeResource: fakeResource{name: "index"}},
+		label:              "namespace or full index path",
+	}})
+	s := New(registry)
+
+	s.switchResource("index", "gecko.v2")
+
+	top, ok := s.stack.Top()
+	if !ok || top.Kind != ListKind || top.Scope != "gecko.v2" || top.ResourceName != "index" {
+		t.Fatalf("unexpected top view: %+v (ok=%v)", top, ok)
+	}
+}
+
 func TestSwitchResourceDirectLookupWithoutIDOpensPrompt(t *testing.T) {
 	registry := resource.NewRegistry()
 	registry.Register(fakeDirectLookupResource{
