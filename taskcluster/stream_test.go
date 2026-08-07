@@ -1,6 +1,7 @@
 package taskcluster
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -112,5 +113,65 @@ func TestStreamHttpResponseConnectError(t *testing.T) {
 	// A port nothing listens on — the initial GET itself must fail.
 	if _, _, err := streamHttpResponse("http://127.0.0.1:1/nope", 1024, nil, func([]byte) {}); err == nil {
 		t.Fatal("expected a connection error")
+	}
+}
+
+func TestStreamHttpResponseFailsOnErrorStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"code":"InsufficientScopes","message":"You do not have sufficient scopes."}`))
+	}))
+	defer srv.Close()
+
+	var got strings.Builder
+	_, _, err := streamHttpResponse(srv.URL, 1024, nil, func(chunk []byte) {
+		got.Write(chunk)
+	})
+	if err == nil {
+		t.Fatal("expected an error for a 403 response")
+	}
+	if got.Len() != 0 {
+		t.Fatalf("expected no chunks delivered, got %q", got.String())
+	}
+
+	var statusErr *HTTPStatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("expected an *HTTPStatusError, got %T: %v", err, err)
+	}
+	if !strings.Contains(err.Error(), "InsufficientScopes") {
+		t.Fatalf("expected the error to name the failure, got %q", err.Error())
+	}
+}
+
+func TestStreamHttpResponseStopUnblocksAStalledErrorBody(t *testing.T) {
+	handlerReached := make(chan struct{})
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.(http.Flusher).Flush() // headers out; the body never arrives
+		close(handlerReached)
+		<-release
+	}))
+	defer srv.Close()
+	defer close(release)
+
+	stop := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := streamHttpResponse(srv.URL, 1024, stop, func([]byte) {})
+		done <- err
+	}()
+
+	<-handlerReached
+	close(stop)
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected the 403 to be reported")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("stop did not unblock the stalled error-body read")
 	}
 }

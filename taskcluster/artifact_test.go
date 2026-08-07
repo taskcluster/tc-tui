@@ -1,6 +1,7 @@
 package taskcluster
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -45,6 +46,65 @@ func TestGetHttpResponseCappedTruncatesOversizedBody(t *testing.T) {
 	}
 	if !truncated {
 		t.Fatalf("expected truncated=true for a body over the cap")
+	}
+}
+
+func TestGetHttpResponseCappedFailsOnErrorStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`{"code":"InsufficientScopes","message":"You do not have sufficient scopes."}`))
+	}))
+	defer server.Close()
+
+	content, _, _, err := getHttpResponseCapped(server.URL, 1024)
+	if err == nil {
+		t.Fatalf("expected an error for a 403 response, got content %q", content)
+	}
+	if content != nil {
+		t.Fatalf("expected no content alongside the error, got %q", content)
+	}
+
+	var statusErr *HTTPStatusError
+	if !errors.As(err, &statusErr) {
+		t.Fatalf("expected an *HTTPStatusError, got %T: %v", err, err)
+	}
+	if statusErr.StatusCode != http.StatusForbidden {
+		t.Fatalf("unexpected status code: %d", statusErr.StatusCode)
+	}
+	if !strings.Contains(err.Error(), "InsufficientScopes") {
+		t.Fatalf("expected the error to name the failure, got %q", err.Error())
+	}
+}
+
+func TestGetHttpResponseCappedFailsOnErrorStatusWithXMLBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		w.Write([]byte(`<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>`))
+	}))
+	defer server.Close()
+
+	_, _, _, err := getHttpResponseCapped(server.URL, 1024)
+	if err == nil {
+		t.Fatalf("expected an error for a 403 response")
+	}
+	if !strings.Contains(err.Error(), "AccessDenied") {
+		t.Fatalf("expected the error to name the failure, got %q", err.Error())
+	}
+}
+
+func TestGetHttpResponseCappedAcceptsSuccessfulStatuses(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusPartialContent, http.StatusNoContent} {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(status)
+			w.Write([]byte(`{"code":"NotAnError"}`))
+		}))
+
+		_, _, _, err := getHttpResponseCapped(server.URL, 1024)
+		server.Close()
+		if err != nil {
+			t.Fatalf("unexpected error for status %d: %v", status, err)
+		}
 	}
 }
 

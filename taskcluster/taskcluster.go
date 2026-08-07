@@ -911,13 +911,18 @@ func (tc *TC) GetRoot() string {
 
 // getHttpResponseCapped fetches url, reading at most maxBytes of the
 // response body — truncated reports whether the body was longer than that.
-// contentType is the response's own Content-Type header.
+// contentType is the response's own Content-Type header. A non-2xx response
+// is an *HTTPStatusError, never content.
 func getHttpResponseCapped(url string, maxBytes int64) (content []byte, contentType string, truncated bool, err error) {
 	response, err := http.Get(url)
 	if err != nil {
 		return nil, "", false, err
 	}
 	defer response.Body.Close()
+
+	if !isSuccessStatus(response.StatusCode) {
+		return nil, "", false, statusError(response)
+	}
 
 	data, err := ioutil.ReadAll(io.LimitReader(response.Body, maxBytes+1))
 	if err != nil {

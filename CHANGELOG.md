@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed a failed artifact fetch being treated as the artifact's own content. A request that is refused or
+  cannot be reached answers with an error document — Taskcluster's `InsufficientScopes` JSON, an S3
+  `AccessDenied` XML page — which used to be rendered as the artifact's body and, worse, written to disk under
+  the artifact's name by `s`, indistinguishable from a successful save. Any non-2xx response is now an error:
+  the detail view shows it (e.g. `403 Forbidden: InsufficientScopes: …`), a live-log stream reports it instead
+  of streaming the error document in as log output, and a save fails before creating a file.
+
 ## [1.1.0] - 2026-08-06
 
 ### Added

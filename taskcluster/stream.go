@@ -33,6 +33,9 @@ func streamHttpResponse(url string, maxBytes int64, stop <-chan struct{}, onChun
 	}
 	defer response.Body.Close()
 
+	// Started before anything reads the body, including the error-document
+	// read below: a server can send an error status and then stall, so that
+	// read has to be interruptible too.
 	watcherDone := make(chan struct{})
 	defer close(watcherDone)
 	crash.Go(func() {
@@ -42,6 +45,11 @@ func streamHttpResponse(url string, maxBytes int64, stop <-chan struct{}, onChun
 		case <-watcherDone:
 		}
 	})
+
+	// A non-2xx body is an error document, not log output — see HTTPStatusError.
+	if !isSuccessStatus(response.StatusCode) {
+		return "", false, statusError(response)
+	}
 
 	contentType = response.Header.Get("Content-Type")
 
