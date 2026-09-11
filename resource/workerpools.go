@@ -88,17 +88,18 @@ func (r *WorkerPoolsResource) List() ([]Row, error) {
 	return rows, nil
 }
 
-// Augment enriches rows with Pending/Claimed (per pool, concurrently via
-// GetTaskQueueCounts) and Errors (one bulk call), calling onUpdate after
+// Augment enriches rows with Pending/Claimed (GetTaskQueueCounts, bulk in
+// batches of 1000 pools) and Errors (one bulk call), calling onUpdate after
 // every individual piece of data arrives so the shell can redraw
 // progressively instead of blocking until everything is in. See
-// resource.Augmentable. wanted is threaded straight into GetTaskQueueCounts,
-// which is the actual per-row cost at scale (one HTTP call per pool) —
-// GetWorkerPoolErrorCounts is a single bulk call regardless of row count, so
-// there's no API cost to save there by skipping a row, though wanted is
-// still honored when writing that result in so a skipped row's cells are
-// left untouched rather than filled in with data it was never "given".
-func (r *WorkerPoolsResource) Augment(rows []Row, wanted func(id string) bool, onUpdate func(rows []Row, completed, total int)) {
+// resource.Augmentable. Neither call's API cost scales per row any more, so
+// wanted is threaded into GetTaskQueueCounts for its remaining two effects:
+// keeping an unwanted pool out of the request (it's still what makes the
+// per-pool fallback path cheap when the bulk call is unavailable), and
+// leaving a skipped row's cells untouched rather than filled in with data it
+// was never "given" — which is also why wanted is honored when writing in
+// the error counts, bulk call or not.
+func (r *WorkerPoolsResource) Augment(rows []Row, wanted func(id string) bool, onUpdate func(rows []Row, completed, total int), onWarn func(msg string)) {
 	if len(rows) == 0 {
 		return
 	}
@@ -172,10 +173,15 @@ func (r *WorkerPoolsResource) Augment(rows []Row, wanted func(id string) bool, o
 		ids[i] = row.ID
 	}
 
+	// Written by the counts goroutine, read after wg.Wait() — the warning
+	// is raised there rather than inline because it has to outlive the
+	// last tick's redraw (see Augmentable.Augment).
+	var countsErr error
+
 	wg.Add(1)
 	crash.Go(func() {
 		defer wg.Done()
-		r.tc.GetTaskQueueCounts(ids, wanted, func(id string, counts taskcluster.TaskQueueCounts) {
+		countsErr = r.tc.GetTaskQueueCounts(ids, wanted, func(id string, counts taskcluster.TaskQueueCounts) {
 			mu.Lock()
 			// wanted is rechecked here too — GetTaskQueueCounts's zero-value
 			// TaskQueueCounts{} for a skipped id (both Known flags false) is
@@ -200,6 +206,13 @@ func (r *WorkerPoolsResource) Augment(rows []Row, wanted func(id string) bool, o
 	})
 
 	wg.Wait()
+
+	// Both count columns are left empty when this fires, so without the
+	// warning the list just looks perpetually blank — and a missing scope
+	// is the one cause of that the user can actually act on.
+	if countsErr != nil {
+		onWarn("pending/claimed " + countsErr.Error())
+	}
 }
 
 // workerPoolActions returns the standard set of quick-jump keys to a worker

@@ -16,15 +16,15 @@ import (
 	"github.com/taskcluster/tc-tui/crash"
 
 	tcurls "github.com/taskcluster/taskcluster-lib-urls"
-	tcclient "github.com/taskcluster/taskcluster/v101/clients/client-go"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcauth"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcgithub"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tchooks"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcindex"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcpurgecache"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcqueue"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcsecrets"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcworkermanager"
+	tcclient "github.com/taskcluster/taskcluster/v109/clients/client-go"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcauth"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcgithub"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tchooks"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcindex"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcpurgecache"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcqueue"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcsecrets"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcworkermanager"
 )
 
 const PageSize = "150"
@@ -77,7 +77,7 @@ type Taskcluster interface {
 	GetRole(roleID string) (*tcauth.GetRoleResponse, error)
 	GetWorkerPools() (WorkerPoolList, error)
 	GetWorkerPool(workerPoolID string) (*tcworkermanager.WorkerPoolFullDefinition, error)
-	GetTaskQueueCounts(workerPoolIDs []string, wanted func(workerPoolID string) bool, onEach func(workerPoolID string, counts TaskQueueCounts))
+	GetTaskQueueCounts(workerPoolIDs []string, wanted func(workerPoolID string) bool, onEach func(workerPoolID string, counts TaskQueueCounts)) error
 	GetWorkerPoolErrorCounts() (map[string]int, error)
 	GetWorkersForWorkerPool(workerPoolID, launchConfigID, state string, limit int) (WorkerList, bool, error)
 	GetWorkerPoolStateCounts(workerPoolID, launchConfigID string) (map[string]int, error)
@@ -272,36 +272,129 @@ type TaskQueueCounts struct {
 	ClaimedKnown bool
 }
 
-// GetTaskQueueCounts fetches pending/claimed counts for each of
-// workerPoolIDs concurrently, calling onEach exactly once per ID as each
-// pool's fetch completes (success, failure, or skipped — see wanted below) —
-// a worker pool's ID doubles as its task queue's ID, and there is no bulk
-// variant of this endpoint (Taskcluster's own web UI fetches it the same
-// way: one call per pool, batched concurrently rather than sequentially).
-// onEach is always called exactly once per id, so a caller counting ticks
-// against len(workerPoolIDs) always reaches it.
+// ErrTaskQueueCountScopes is returned by GetTaskQueueCounts when the bulk
+// counts call was refused for want of scopes. Its text is the whole
+// explanation a user needs — deliberately not the API's own error document,
+// which restates the same scope expression across a dozen lines that don't
+// fit the one-line warning this ends up in.
+var ErrTaskQueueCountScopes = errors.New("counts require queue:pending-count and queue:claimed-count for every worker pool")
+
+// GetTaskQueueCounts fetches pending/claimed counts for workerPoolIDs — a
+// worker pool's ID doubles as its task queue's ID — calling onEach exactly
+// once per entry of workerPoolIDs (success, failure, or skipped), so a caller
+// counting ticks against len(workerPoolIDs) always reaches it.
 //
-// wanted is consulted twice per id: once before it's even queued (skipping
-// it entirely, freeing that concurrency slot for one that IS wanted), and
-// again right after a slot actually frees up — since with a large
-// workerPoolIDs list most ids spend real time queued behind maxConcurrency,
-// and wanted's answer may have changed by the time a slot opens (e.g. the
-// caller applied a filter while a large batch was still draining). Pass
+// Counts come from the bulk task-queue-counts endpoint (taskcluster/taskcluster#9129),
+// which takes up to 1000 unique task queue IDs per request — hence the
+// batching and the per-batch dedupe, since its request schema declares both
+// maxItems: 1000 and uniqueItems. A duplicated id still gets its own onEach
+// call; it just isn't asked for twice.
+//
+// wanted is consulted before an id is added to a batch, and again by the
+// per-id fallback path below (where an id can spend real time queued behind
+// maxConcurrency, long enough for wanted's answer to change — e.g. the caller
+// applied a filter while a large batch was still draining). An unwanted id is
+// reported as a zero-value TaskQueueCounts without being fetched. Pass
 // `func(string) bool { return true }` to fetch every id unconditionally.
 //
-// TaskQueueCounts (the combined, ideal call) requires both
-// queue:pending-count and queue:claimed-count scopes together, so a
-// credential granted only one of the two (as observed with community-tc's
-// anonymous role, which grants queue:claimed-list but apparently not
-// queue:claimed-count) fails the combined call entirely. Each number then
-// falls back independently to an older, more narrowly-scoped call: Pending
-// to the deprecated pending-count-only endpoint, Claimed to counting
-// GetClaimedTasks's result (the same queue:claimed-list-scoped call the
-// existing "claimed" list view already uses successfully) — an approximate
-// but perfectly serviceable substitute for a single summary column, given
-// currently-claimed tasks are bounded by worker capacity rather than an
-// unbounded backlog.
-func (tc *TC) GetTaskQueueCounts(workerPoolIDs []string, wanted func(workerPoolID string) bool, onEach func(workerPoolID string, counts TaskQueueCounts)) {
+// The two ways the bulk call fails are treated differently, because only one
+// of them is worth retrying per-pool:
+//
+//   - Insufficient scopes (it needs queue:pending-count AND
+//     queue:claimed-count for EVERY requested queue, and refuses the whole
+//     request if one is missing) means the credential can't read counts,
+//     full stop: the per-queue combined call demands the same pair, so
+//     fanning out would spend one-to-two requests per pool to arrive at the
+//     same refusal. Scopes are granted by pattern (a role holds
+//     queue:claimed-count:* or nothing at all) rather than pool by pool, so
+//     the theoretical "authorized for some pools" case isn't worth paying
+//     for. Every remaining id is reported unknown and ErrTaskQueueCountScopes
+//     is returned, for the caller to put in front of the user.
+//   - Anything else — most importantly a 404 from a deployment older than
+//     the PR above, which as of 2026-09-11 is every production one — falls
+//     back to fetching the batch's ids individually, since there the counts
+//     really are obtainable (see getTaskQueueCountsIndividually). A first
+//     such failure also switches the remaining batches straight to that
+//     path: re-sending another 1000-id request that is about to fail the
+//     same way buys nothing.
+func (tc *TC) GetTaskQueueCounts(workerPoolIDs []string, wanted func(workerPoolID string) bool, onEach func(workerPoolID string, counts TaskQueueCounts)) error {
+	const batchSize = 1000
+
+	fanOut := false // the bulk call has failed in a way a per-pool retry can fix
+	for start := 0; start < len(workerPoolIDs); start += batchSize {
+		end := min(start+batchSize, len(workerPoolIDs))
+
+		var (
+			wantedIDs []string // every wanted id in this batch, duplicates included
+			uniqueIDs []string // what the request itself asks for
+			seen      = make(map[string]bool)
+		)
+		for _, id := range workerPoolIDs[start:end] {
+			if !wanted(id) {
+				onEach(id, TaskQueueCounts{})
+				continue
+			}
+			wantedIDs = append(wantedIDs, id)
+			if !seen[id] {
+				uniqueIDs = append(uniqueIDs, id)
+				seen[id] = true
+			}
+		}
+		if len(uniqueIDs) == 0 {
+			continue
+		}
+		if fanOut {
+			tc.getTaskQueueCountsIndividually(wantedIDs, wanted, onEach)
+			continue
+		}
+
+		response, err := tc.queue.TaskQueueCountsBatch(&tcqueue.TaskQueueCountsRequest{TaskQueueIds: uniqueIDs})
+		if err != nil {
+			if isInsufficientScopes(err) {
+				// onEach's once-per-id contract covers the ids this batch
+				// gave up on AND every batch after it, which now never runs.
+				for _, id := range wantedIDs {
+					onEach(id, TaskQueueCounts{})
+				}
+				for _, id := range workerPoolIDs[end:] {
+					onEach(id, TaskQueueCounts{})
+				}
+				return ErrTaskQueueCountScopes
+			}
+			fanOut = true
+			tc.getTaskQueueCountsIndividually(wantedIDs, wanted, onEach)
+			continue
+		}
+
+		countsByID := make(map[string]TaskQueueCounts, len(response.TaskQueueCounts))
+		for _, counts := range response.TaskQueueCounts {
+			countsByID[counts.TaskQueueID] = TaskQueueCounts{
+				Pending: counts.PendingTasks, PendingKnown: true,
+				Claimed: counts.ClaimedTasks, ClaimedKnown: true,
+			}
+		}
+		// An id the response omitted maps to the zero value, i.e. unknown
+		// rather than a genuine zero count.
+		for _, id := range wantedIDs {
+			onEach(id, countsByID[id])
+		}
+	}
+
+	return nil
+}
+
+// getTaskQueueCountsIndividually is GetTaskQueueCounts' fallback: one
+// concurrent per-queue call each, so that a single unauthorized queue costs
+// only its own row rather than the whole batch. If even a queue's combined
+// count call fails, each number degrades independently — Pending to the
+// deprecated pending-count-only endpoint, Claimed to counting
+// GetClaimedTasks' result (the same queue:claimed-list-scoped call the
+// "claimed" list view already uses successfully) — since a credential can
+// hold one of the two count scopes without the other, as observed with
+// community-tc's anonymous role. Counting the claimed list is approximate but
+// serviceable for a single summary column, currently-claimed tasks being
+// bounded by worker capacity rather than by an unbounded backlog.
+func (tc *TC) getTaskQueueCountsIndividually(workerPoolIDs []string, wanted func(workerPoolID string) bool, onEach func(workerPoolID string, counts TaskQueueCounts)) {
 	const maxConcurrency = 24
 
 	var (
@@ -897,12 +990,24 @@ func (tc *TC) GetGithubRepository(owner, repo string) (*tcgithub.RepositoryRespo
 // response — used by FindIndexedTask to treat "not found" as an expected
 // outcome rather than a failure.
 func isNotFound(err error) bool {
+	return hasStatusCode(err, 404)
+}
+
+// isInsufficientScopes reports whether err is a generated client's refusal
+// for want of scopes — a 403, which the services return only for an
+// authorization failure (an InsufficientScopes/InsufficientPermissions
+// error code), never for a malformed or unserviceable request.
+func isInsufficientScopes(err error) bool {
+	return hasStatusCode(err, 403)
+}
+
+func hasStatusCode(err error, code int) bool {
 	var apiErr *tcclient.APICallException
 	if !errors.As(err, &apiErr) {
 		return false
 	}
 	return apiErr.CallSummary != nil && apiErr.CallSummary.HTTPResponse != nil &&
-		apiErr.CallSummary.HTTPResponse.StatusCode == 404
+		apiErr.CallSummary.HTTPResponse.StatusCode == code
 }
 
 func (tc *TC) GetRoot() string {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcpurgecache"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcpurgecache"
 
 	"github.com/taskcluster/tc-tui/taskcluster"
 )

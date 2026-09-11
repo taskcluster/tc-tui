@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcqueue"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcqueue"
 )
 
 func TestTaskRunsResourceScopedListReturnsOneRowPerRun(t *testing.T) {

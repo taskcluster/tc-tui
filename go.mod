@@ -1,6 +1,6 @@
 module github.com/taskcluster/tc-tui
 
-go 1.26.5
+go 1.27.1
 
 require (
 	github.com/charmbracelet/glamour v1.0.0
@@ -8,7 +8,7 @@ require (
 	github.com/rivo/tview v0.42.0
 	github.com/taskcluster/slugid-go v1.1.0
 	github.com/taskcluster/taskcluster-lib-urls v13.0.1+incompatible
-	github.com/taskcluster/taskcluster/v101 v101.1.0
+	github.com/taskcluster/taskcluster/v109 v109.0.0
 	gopkg.in/yaml.v3 v3.0.1
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -47,8 +47,8 @@ require (
 	github.com/yuin/goldmark v1.7.17 // indirect
 	github.com/yuin/goldmark-emoji v1.0.6 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/term v0.44.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 )

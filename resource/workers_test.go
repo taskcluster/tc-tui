@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	tcclient "github.com/taskcluster/taskcluster/v101/clients/client-go"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcqueue"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcworkermanager"
+	tcclient "github.com/taskcluster/taskcluster/v109/clients/client-go"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcqueue"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcworkermanager"
 
 	"github.com/taskcluster/tc-tui/taskcluster"
 )

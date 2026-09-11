@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -14,8 +15,9 @@ import (
 // than silently.
 type fakeWorkerPoolsTC struct {
 	taskcluster.Taskcluster
-	pools       taskcluster.WorkerPoolList
-	errorCounts map[string]int
+	pools              taskcluster.WorkerPoolList
+	errorCounts        map[string]int
+	taskQueueCountsErr error
 }
 
 func (f *fakeWorkerPoolsTC) GetWorkerPools() (taskcluster.WorkerPoolList, error) {
@@ -26,7 +28,7 @@ func (f *fakeWorkerPoolsTC) GetWorkerPoolErrorCounts() (map[string]int, error) {
 	return f.errorCounts, nil
 }
 
-func (f *fakeWorkerPoolsTC) GetTaskQueueCounts(workerPoolIDs []string, wanted func(workerPoolID string) bool, onEach func(workerPoolID string, counts taskcluster.TaskQueueCounts)) {
+func (f *fakeWorkerPoolsTC) GetTaskQueueCounts(workerPoolIDs []string, wanted func(workerPoolID string) bool, onEach func(workerPoolID string, counts taskcluster.TaskQueueCounts)) error {
 	for _, id := range workerPoolIDs {
 		if !wanted(id) {
 			onEach(id, taskcluster.TaskQueueCounts{})
@@ -34,6 +36,7 @@ func (f *fakeWorkerPoolsTC) GetTaskQueueCounts(workerPoolIDs []string, wanted fu
 		}
 		onEach(id, taskcluster.TaskQueueCounts{PendingKnown: true, Pending: 1, ClaimedKnown: true, Claimed: 2})
 	}
+	return f.taskQueueCountsErr
 }
 
 // This is the exact scenario reported as still broken: open a list with a
@@ -228,4 +231,35 @@ func rowAugmented(s *Shell, id string) bool {
 		}
 	})
 	return augmented
+}
+
+// A credential that can't read pending/claimed counts leaves both columns
+// empty, which on its own looks indistinguishable from a list that's still
+// loading. The reason an Augmentable reports has to reach the footer — and
+// has to survive the final tick's redraw, which rewrites the very line it
+// lands on.
+func TestScopeDeniedCountsWarningReachesTheFooter(t *testing.T) {
+	fake := &fakeWorkerPoolsTC{
+		pools: taskcluster.WorkerPoolList{
+			{WorkerPoolID: "proj/pool-a", ProviderID: "gcp"},
+		},
+		errorCounts:        map[string]int{"proj/pool-a": 0},
+		taskQueueCountsErr: taskcluster.ErrTaskQueueCountScopes,
+	}
+	res := resource.NewWorkerPoolsResource(fake)
+
+	registry := resource.NewRegistry()
+	registry.Register(res)
+
+	s := newRunningTestShell(t, registry)
+	s.currentListResource = res.Name()
+	s.currentColumns = res.Columns()
+	s.stack.Push(View{ResourceName: res.Name(), Kind: ListKind})
+
+	s.loadList(res, "", "", true, false, false)
+
+	waitFor(t, func() bool {
+		got := readOnUI(s, func() string { return s.footerBreadcrumb.GetText(true) })
+		return strings.Contains(got, "queue:claimed-count")
+	})
 }

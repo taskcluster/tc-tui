@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	tcclient "github.com/taskcluster/taskcluster/v101/clients/client-go"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcworkermanager"
+	tcclient "github.com/taskcluster/taskcluster/v109/clients/client-go"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcworkermanager"
 
 	"github.com/taskcluster/tc-tui/taskcluster"
 )
@@ -87,7 +87,7 @@ func collectAugmentUpdatesWithWanted(res *WorkerPoolsResource, rows []Row, wante
 		mu.Lock()
 		updates = append(updates, updated)
 		mu.Unlock()
-	})
+	}, func(string) {})
 	return updates
 }
 
@@ -459,4 +459,54 @@ func TestWorkerPoolActionsIncludesPurgeCache(t *testing.T) {
 		}
 	}
 	t.Fatalf("expected a 'P' purgecache action, got: %+v", actions)
+}
+
+// Augment must hand a give-up-entirely counts failure (a scope denial) to
+// onWarn — the count columns are blank either way, so the reason is the only
+// thing distinguishing "your credential can't read this" from "still
+// loading".
+func TestWorkerPoolsResourceAugmentWarnsWhenCountsAreDenied(t *testing.T) {
+	fake := &fakeTaskcluster{
+		workerPools:           taskcluster.WorkerPoolList{{WorkerPoolID: "proj/pool", ProviderID: "gcp"}},
+		workerPoolErrorCounts: map[string]int{"proj/pool": 0},
+		taskQueueCountsErr:    taskcluster.ErrTaskQueueCountScopes,
+	}
+	res := NewWorkerPoolsResource(fake)
+	rows, err := res.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var warnings []string
+	res.Augment(rows, alwaysWanted, func([]Row, int, int) {}, func(msg string) {
+		warnings = append(warnings, msg)
+	})
+
+	if len(warnings) != 1 {
+		t.Fatalf("warnings = %v, want exactly one", warnings)
+	}
+	if !strings.Contains(warnings[0], "queue:claimed-count") || !strings.HasPrefix(warnings[0], "pending/claimed") {
+		t.Errorf("warning %q should name the column and the missing scope", warnings[0])
+	}
+}
+
+// The ordinary path must stay quiet — a warning on every refresh would
+// train the user to ignore the line it appears on.
+func TestWorkerPoolsResourceAugmentDoesNotWarnOnSuccess(t *testing.T) {
+	fake := &fakeTaskcluster{
+		workerPools:           taskcluster.WorkerPoolList{{WorkerPoolID: "proj/pool", ProviderID: "gcp"}},
+		workerPoolErrorCounts: map[string]int{"proj/pool": 0},
+		taskQueueCounts: map[string]taskcluster.TaskQueueCounts{
+			"proj/pool": {Pending: 1, PendingKnown: true, Claimed: 2, ClaimedKnown: true},
+		},
+	}
+	res := NewWorkerPoolsResource(fake)
+	rows, err := res.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res.Augment(rows, alwaysWanted, func([]Row, int, int) {}, func(msg string) {
+		t.Errorf("unexpected warning: %q", msg)
+	})
 }

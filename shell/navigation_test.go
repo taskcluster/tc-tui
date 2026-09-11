@@ -491,7 +491,7 @@ type fakeAugmentableResource struct {
 func (f *fakeAugmentableResource) List() ([]resource.Row, error)  { return f.rows, nil }
 func (f *fakeAugmentableResource) RefreshInterval() time.Duration { return f.ttl }
 
-func (f *fakeAugmentableResource) Augment(rows []resource.Row, wanted func(id string) bool, onUpdate func(rows []resource.Row, completed, total int)) {
+func (f *fakeAugmentableResource) Augment(rows []resource.Row, wanted func(id string) bool, onUpdate func(rows []resource.Row, completed, total int), _ func(msg string)) {
 	f.mu.Lock()
 	myCall := f.callCount
 	f.callCount++

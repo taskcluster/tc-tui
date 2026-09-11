@@ -9,7 +9,7 @@ GitHub builds and more — without leaving the terminal. Navigation is command-b
 
 ## Install
 
-Requires Go 1.26.5+.
+Requires Go 1.27.1+.
 
 ```sh
 go install github.com/taskcluster/tc-tui@latest
@@ -174,7 +174,7 @@ TASKCLUSTER_ROOT_URL=https://community-tc.services.mozilla.com/ python3 scripts/
 Four packages, in strict dependency order — `taskcluster` → `resource` → `shell` → `controller`:
 
 - **`taskcluster/`** — thin wrapper around the generated Taskcluster Go clients
-  (`github.com/taskcluster/taskcluster/v101`). Handles pagination and caps artifact-content fetches.
+  (`github.com/taskcluster/taskcluster/v109`). Handles pagination and caps artifact-content fetches.
 - **`resource/`** — one file per entity type, each implementing a common `Resource` interface
   (`List`/`Describe`/`Columns`/`Aliases`/...). Optional marker interfaces opt a resource into extra shell
   behavior — scoped/faceted lists, direct-by-id lookup, progressive row augmentation, web links, downloads,

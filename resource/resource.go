@@ -277,7 +277,16 @@ type Augmentable interface {
 	// stops costing further work. A row Augment skips because of wanted
 	// still counts toward completed/total — it must not be silently
 	// dropped from the tally.
-	Augment(rows []Row, wanted func(id string) bool, onUpdate func(rows []Row, completed, total int))
+	//
+	// onWarn reports an enrichment that couldn't be done at all — as
+	// opposed to one row's value being unavailable — for the shell to show
+	// as a transient warning, e.g. counts the credential lacks the scopes
+	// to read. It may be called from any goroutine, zero or more times,
+	// and only AFTER the onUpdate ticks it explains: the shell's warning
+	// line shares the footer with the breadcrumbs a tick's redraw
+	// rewrites, so a warning issued mid-batch would be wiped by the next
+	// tick.
+	Augment(rows []Row, wanted func(id string) bool, onUpdate func(rows []Row, completed, total int), onWarn func(msg string))
 }
 
 // LiveStreamer is implemented by a Resource for which some ids' Detail

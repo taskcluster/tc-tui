@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/taskcluster/slugid-go/slugid"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcqueue"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcqueue"
 )
 
 // sampleTaskDef is a minimal, valid-shaped definition with stale timestamps,

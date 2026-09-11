@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/rivo/tview"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcqueue"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcqueue"
 
 	"github.com/taskcluster/tc-tui/taskcluster"
 )

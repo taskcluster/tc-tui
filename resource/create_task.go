@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/taskcluster/slugid-go/slugid"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcqueue"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcqueue"
 	"gopkg.in/yaml.v3"
 	yamlconv "sigs.k8s.io/yaml"
 

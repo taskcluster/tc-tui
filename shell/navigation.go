@@ -1124,6 +1124,20 @@ func (s *Shell) triggerAugmentForNewlyVisibleRows(visible []resource.Row) {
 					settledIDs: cloneIDSet(s.settledRowIDs),
 				})
 			})
+		}, func(msg string) {
+			// An enrichment that couldn't be done at all (e.g. counts the
+			// credential can't read) — shown like any other transient
+			// warning, and subject to the same staleness checks as a tick,
+			// so a warning about a view the user has already left doesn't
+			// land on top of the one they're looking at now. Queued through
+			// the same QueueUpdateDraw path the ticks use, hence after
+			// them, so the final tick's breadcrumb redraw can't wipe it.
+			s.app.QueueUpdateDraw(func() {
+				if s.isStaleLoad(gen) || !s.isTopView(view) || facetValue != s.currentFacetValue || s.augmentEpoch != epoch {
+					return
+				}
+				s.showTransientWarning(msg)
+			})
 		})
 	})
 }

@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"regexp"
 
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcauth"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcgithub"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tchooks"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcindex"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcqueue"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcsecrets"
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcworkermanager"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcauth"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcgithub"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tchooks"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcindex"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcqueue"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcsecrets"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcworkermanager"
 
 	"github.com/taskcluster/tc-tui/taskcluster"
 )
@@ -41,7 +41,8 @@ type fakeTaskcluster struct {
 	workerPool     *tcworkermanager.WorkerPoolFullDefinition
 	workerPoolErr  error
 
-	taskQueueCounts map[string]taskcluster.TaskQueueCounts
+	taskQueueCounts    map[string]taskcluster.TaskQueueCounts
+	taskQueueCountsErr error
 
 	workerPoolErrorCounts    map[string]int
 	workerPoolErrorCountsErr error
@@ -206,8 +207,9 @@ func (f *fakeTaskcluster) GetWorkerPool(workerPoolID string) (*tcworkermanager.W
 // GetTaskQueueCounts calls onEach once per ID, in order, with whatever
 // f.taskQueueCounts holds for that ID (the zero value if absent or if
 // wanted rejects it) — no goroutines, so tests calling it don't need to
-// synchronize.
-func (f *fakeTaskcluster) GetTaskQueueCounts(workerPoolIDs []string, wanted func(workerPoolID string) bool, onEach func(workerPoolID string, counts taskcluster.TaskQueueCounts)) {
+// synchronize — and returns f.taskQueueCountsErr, standing in for the real
+// client's give-up-entirely case (a scope denial).
+func (f *fakeTaskcluster) GetTaskQueueCounts(workerPoolIDs []string, wanted func(workerPoolID string) bool, onEach func(workerPoolID string, counts taskcluster.TaskQueueCounts)) error {
 	for _, id := range workerPoolIDs {
 		if !wanted(id) {
 			onEach(id, taskcluster.TaskQueueCounts{})
@@ -215,6 +217,7 @@ func (f *fakeTaskcluster) GetTaskQueueCounts(workerPoolIDs []string, wanted func
 		}
 		onEach(id, f.taskQueueCounts[id])
 	}
+	return f.taskQueueCountsErr
 }
 
 func (f *fakeTaskcluster) GetWorkerPoolErrorCounts() (map[string]int, error) {

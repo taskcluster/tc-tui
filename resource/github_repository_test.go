@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/taskcluster/taskcluster/v101/clients/client-go/tcgithub"
+	"github.com/taskcluster/taskcluster/v109/clients/client-go/tcgithub"
 )
 
 func TestGithubRepositoryResourceDescribeInstalled(t *testing.T) {
